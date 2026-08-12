@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The Humidor</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -11,37 +12,47 @@
 </head>
 <body>
 
-<!-- API anahtarı kapısı: anahtar yoksa bu ekran her şeyin önünde durur -->
-<div id="gate" class="gate" hidden>
-  <form id="gate-form" class="gate-card">
-    <p class="gate-eyebrow">The Humidor</p>
-    <h1 class="gate-title">Kapıyı aç</h1>
-    <p class="gate-help">Railway'de tanımladığın API anahtarını gir.</p>
-    <input id="gate-key" type="password" placeholder="API anahtarı" autocomplete="off" required />
-    <button type="submit">Gir</button>
-    <p id="gate-error" class="gate-error" hidden>Anahtar kabul edilmedi, tekrar dene.</p>
-  </form>
-</div>
-
-<div id="app" class="app" hidden>
+<div id="app" class="app">
 
   <header class="topbar">
     <div class="wordmark">
-      <span class="wordmark-the">the</span>
-      <span class="wordmark-main">Humidor</span>
+      <img src="/icon.svg" alt="" class="wordmark-icon" />
+      <div class="wordmark-text">
+        <span class="wordmark-the">the</span>
+        <span class="wordmark-main">Humidor</span>
+      </div>
     </div>
     <nav class="tabs" id="tabs">
       <button class="tab" data-view="envanter">Envanter</button>
       <button class="tab" data-view="ekle">Yeni Ekle</button>
       <button class="tab" data-view="glossary">Glossary</button>
+      <button class="tab" data-view="sensorler">Sensörler</button>
     </nav>
-    <button class="key-change" id="key-change" title="API anahtarını değiştir">⚿</button>
   </header>
 
   <main>
 
     <!-- ENVANTER -->
     <section id="view-envanter" class="view">
+
+      <div class="dashboard" id="dashboard">
+        <div class="dash-totals">
+          <div class="dash-stat">
+            <span class="dash-num" id="stat-types">–</span>
+            <span class="dash-label">künye çeşidi</span>
+          </div>
+          <div class="dash-stat">
+            <span class="dash-num" id="stat-stock">–</span>
+            <span class="dash-label">elde kalan</span>
+          </div>
+          <div class="dash-stat">
+            <span class="dash-num" id="stat-smoked">–</span>
+            <span class="dash-label">içilen</span>
+          </div>
+        </div>
+        <div class="dash-lists" id="dash-lists"></div>
+      </div>
+
       <div class="view-head">
         <h2>Envanter</h2>
         <p class="view-sub" id="envanter-count"></p>
@@ -169,6 +180,42 @@
           <div class="form-actions">
             <button type="submit" class="btn-primary">Ekle</button>
             <span id="glossary-form-status" class="form-status"></span>
+          </div>
+        </form>
+      </details>
+    </section>
+
+    <!-- SENSÖRLER -->
+    <section id="view-sensorler" class="view" hidden>
+      <div class="view-head">
+        <h2>Sensörler</h2>
+        <p class="view-sub">Humidor sıcaklık/nem takibi.</p>
+      </div>
+      <div id="humidor-grid" class="card-grid"></div>
+      <p id="humidor-empty" class="empty-state" hidden>
+        Henüz humidor tanımlanmadı. BLE termometre kurulunca burada canlı sıcaklık/nem göreceksin — ama humidoru şimdiden isimlendirebilirsin.
+      </p>
+
+      <details class="add-term">
+        <summary>+ Humidor ekle</summary>
+        <form id="humidor-form" class="ledger-form">
+          <div class="field-row">
+            <label class="field">
+              <span>İsim <em>*</em></span>
+              <input name="name" required placeholder="Ofis humidoru" />
+            </label>
+            <label class="field">
+              <span>Konum notu</span>
+              <input name="location_note" placeholder="Çalışma odası" />
+            </label>
+          </div>
+          <label class="field">
+            <span>MAC adresi</span>
+            <input name="mac_address" placeholder="Cihaz kurulunca doldurulur, şimdilik boş bırakabilirsin" />
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Ekle</button>
+            <span id="humidor-form-status" class="form-status"></span>
           </div>
         </form>
       </details>
