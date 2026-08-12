@@ -57,7 +57,7 @@ button { font-family: var(--font-body); cursor: pointer; }
   margin-bottom: 32px;
 }
 .wordmark { display: flex; align-items: center; gap: 10px; margin-right: auto; }
-.wordmark-icon { width: 24px; height: auto; flex-shrink: 0; display: block; }
+.wordmark-icon { width: 75px; height: auto; flex-shrink: 0; display: block; }
 .wordmark-text { font-family: var(--font-display); line-height: 1; }
 .wordmark-the {
   display: block;
