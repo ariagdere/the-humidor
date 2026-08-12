@@ -1,4 +1,5 @@
 import "dotenv/config";
+import path from "path";
 import express from "express";
 import cors from "cors";
 import { requireApiKey } from "./middleware/auth";
@@ -11,6 +12,11 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Arayüz dosyaları (public/index.html, styles.css, app.js) — auth'tan önce,
+// çünkü tarayıcı API anahtarını göndermeden önce bu dosyaları indirmesi lazım.
+// Anahtar kontrolü tarayıcı tarafında (app.js) her API çağrısında ayrıca yapılıyor.
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Basit sağlık kontrolü — Railway'in deploy sonrası kontrolü ve senin
 // tarayıcından hızlı "ayakta mı" testi için, kimlik doğrulama gerektirmez.
