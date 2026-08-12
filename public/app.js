@@ -2,8 +2,10 @@
 // The Humidor — frontend mantığı. Build adımı yok, doğrudan tarayıcıda çalışır.
 // ============================================================================
 
-const KEY_STORAGE = "humidor_api_key";
-let apiKey = localStorage.getItem(KEY_STORAGE) || "";
+// Bu satır sunucu tarafında (src/index.ts) Railway'deki gerçek API_KEY ile
+// değiştiriliyor — gerçek değer hiçbir zaman bu dosyanın kendisinde,
+// dolayısıyla public repoda, düz metin olarak durmuyor.
+const API_KEY = "__API_KEY__";
 let glossaryCache = [];
 
 // --- API yardımcı fonksiyonu -----------------------------------------------
@@ -11,7 +13,7 @@ async function apiFetch(path, options = {}) {
   const res = await fetch(path, {
     ...options,
     headers: {
-      "x-api-key": apiKey,
+      "x-api-key": API_KEY,
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     },
@@ -51,54 +53,6 @@ function fmtMoney(v) {
   return n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
 }
 
-// --- Kapı (API key) ----------------------------------------------------------
-const gate = document.getElementById("gate");
-const app = document.getElementById("app");
-const gateForm = document.getElementById("gate-form");
-const gateKeyInput = document.getElementById("gate-key");
-const gateError = document.getElementById("gate-error");
-
-function showGate() {
-  gate.hidden = false;
-  app.hidden = true;
-  gateKeyInput.focus();
-}
-
-async function tryEnterApp(candidateKey) {
-  const prevKey = apiKey;
-  if (candidateKey !== undefined) apiKey = candidateKey;
-  try {
-    await apiFetch("/api/glossary");
-  } catch (e) {
-    apiKey = prevKey;
-    throw e;
-  }
-  localStorage.setItem(KEY_STORAGE, apiKey);
-  gate.hidden = true;
-  app.hidden = false;
-  gateError.hidden = true;
-  initApp();
-}
-
-gateForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  gateError.hidden = true;
-  const val = gateKeyInput.value.trim();
-  if (!val) return;
-  try {
-    await tryEnterApp(val);
-  } catch {
-    gateError.hidden = false;
-  }
-});
-
-document.getElementById("key-change").addEventListener("click", () => {
-  localStorage.removeItem(KEY_STORAGE);
-  apiKey = "";
-  gateKeyInput.value = "";
-  showGate();
-});
-
 // --- Sekmeler ----------------------------------------------------------------
 function switchView(name) {
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
@@ -107,6 +61,38 @@ function switchView(name) {
 document.querySelectorAll("[data-view]").forEach((el) =>
   el.addEventListener("click", () => switchView(el.dataset.view))
 );
+
+// --- Dashboard -------------------------------------------------------------
+async function loadStats() {
+  const stats = await apiFetch("/api/stats");
+  document.getElementById("stat-types").textContent = stats.total_cigar_types;
+  document.getElementById("stat-stock").textContent = stats.total_in_stock;
+  document.getElementById("stat-smoked").textContent = stats.total_smoked;
+
+  const lists = [
+    { title: "Top rated", items: stats.top_rated, metric: (i) => `${i.avg_score}/100` },
+    { title: "En çok içilen", items: stats.most_smoked, metric: (i) => `${i.tasting_count} tadım` },
+    { title: "En çok tekrar alınan", items: stats.most_repurchased, metric: (i) => `${i.purchase_count} alım` },
+  ];
+
+  const container = document.getElementById("dash-lists");
+  container.innerHTML = lists.map((l) => `
+    <div class="dash-list">
+      <h4>${l.title}</h4>
+      ${l.items.length
+        ? `<ol>${l.items.map((i) => `
+            <li data-cigar-id="${i.id}">
+              <span class="dash-list-name">${esc([i.brand, i.line].filter(Boolean).join(" "))}</span>
+              <span class="dash-list-metric">${l.metric(i)}</span>
+            </li>`).join("")}</ol>`
+        : `<p class="dash-empty">Henüz veri yok</p>`}
+    </div>
+  `).join("");
+
+  container.querySelectorAll("[data-cigar-id]").forEach((el) =>
+    el.addEventListener("click", () => openCigarModal(Number(el.dataset.cigarId)))
+  );
+}
 
 // --- Envanter ------------------------------------------------------------
 async function loadEnvanter() {
@@ -278,7 +264,7 @@ function wireModalForms(cigarId) {
       status.textContent = "Eklendi ✓"; status.className = "form-status ok";
       const fresh = await apiFetch(`/api/cigars/${cigarId}`);
       renderCigarModal(fresh);
-      loadEnvanter();
+      loadEnvanter(); loadStats();
     } catch (err) {
       status.textContent = err.message; status.className = "form-status err";
     }
@@ -302,7 +288,7 @@ function wireModalForms(cigarId) {
       status.textContent = "Kaydedildi ✓"; status.className = "form-status ok";
       const fresh = await apiFetch(`/api/cigars/${cigarId}`);
       renderCigarModal(fresh);
-      loadEnvanter();
+      loadEnvanter(); loadStats();
     } catch (err) {
       status.textContent = err.message; status.className = "form-status err";
     }
@@ -321,7 +307,7 @@ cigarForm.addEventListener("submit", async (e) => {
     status.textContent = "Künye kaydedildi ✓";
     status.className = "form-status ok";
     cigarForm.reset();
-    await loadEnvanter();
+    await loadEnvanter(); loadStats();
     switchView("envanter");
     openCigarModal(created.id);
   } catch (err) {
@@ -385,15 +371,63 @@ glossaryForm.addEventListener("submit", async (e) => {
   }
 });
 
+// --- Sensörler / Humidorlar ------------------------------------------------
+async function loadHumidors() {
+  const grid = document.getElementById("humidor-grid");
+  const empty = document.getElementById("humidor-empty");
+  grid.innerHTML = `<p class="loading">Yükleniyor…</p>`;
+
+  const humidors = await apiFetch("/api/humidors");
+  grid.innerHTML = "";
+
+  if (humidors.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  for (const h of humidors) {
+    const card = document.createElement("div");
+    card.className = "humidor-card";
+    const hasReading = h.latest_reading_time != null;
+    card.innerHTML = `
+      <div class="humidor-name">${esc(h.name)}</div>
+      ${h.location_note ? `<div class="humidor-note">${esc(h.location_note)}</div>` : ""}
+      ${hasReading
+        ? `<div class="humidor-readings">
+             <div><span class="humidor-reading-num">${Number(h.latest_temperature_c)}°</span><div class="humidor-reading-lbl">sıcaklık</div></div>
+             <div><span class="humidor-reading-num">%${Number(h.latest_humidity_pct)}</span><div class="humidor-reading-lbl">nem</div></div>
+           </div>`
+        : `<p class="humidor-waiting">${h.mac_address ? "Veri bekleniyor…" : "MAC adresi tanımlanmadı, cihaz kurulunca veri akmaya başlayacak"}</p>`}
+      ${h.mac_address ? `<div class="humidor-mac">${esc(h.mac_address)}</div>` : ""}
+    `;
+    grid.appendChild(card);
+  }
+}
+
+const humidorForm = document.getElementById("humidor-form");
+humidorForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const status = document.getElementById("humidor-form-status");
+  const data = Object.fromEntries(new FormData(humidorForm));
+  Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
+  try {
+    await apiFetch("/api/humidors", { method: "POST", body: JSON.stringify(data) });
+    status.textContent = "Eklendi ✓"; status.className = "form-status ok";
+    humidorForm.reset();
+    await loadHumidors();
+  } catch (err) {
+    status.textContent = err.message; status.className = "form-status err";
+  }
+});
+
 // --- Başlangıç -----------------------------------------------------------
 function initApp() {
   switchView("envanter");
+  loadStats().catch((e) => console.error(e));
   loadEnvanter().catch((e) => console.error(e));
   loadGlossary().catch((e) => console.error(e));
+  loadHumidors().catch((e) => console.error(e));
 }
 
-if (apiKey) {
-  tryEnterApp().catch(() => { apiKey = ""; showGate(); });
-} else {
-  showGate();
-}
+initApp();
