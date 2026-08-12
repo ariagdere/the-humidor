@@ -1,0 +1,332 @@
+/* ==========================================================================
+   The Humidor — token sistemi
+   Sıcak, aydınlık bir "puro kutusu / tadım defteri" teması.
+   ========================================================================== */
+:root {
+  --paper: #F5EFE2;
+  --card: #FBF8F1;
+  --ink: #2B211A;
+  --ink-soft: #6B5D4F;
+  --cedar: #7A4A2E;
+  --cedar-hover: #653C24;
+  --brass: #B8935A;
+  --brass-soft: #E4D2AC;
+  --leaf: #4A5D3A;
+  --line: #E1D5BE;
+  --error: #A23E2E;
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Karla", -apple-system, sans-serif;
+
+  --radius: 10px;
+  --shadow-card: 0 1px 2px rgba(43, 33, 26, 0.06), 0 4px 14px rgba(43, 33, 26, 0.07);
+  --shadow-modal: 0 20px 60px rgba(43, 33, 26, 0.28);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse at top left, rgba(184, 147, 90, 0.10), transparent 45%),
+    radial-gradient(ellipse at bottom right, rgba(122, 74, 46, 0.07), transparent 50%);
+}
+
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; color: var(--ink); }
+
+button { font-family: var(--font-body); cursor: pointer; }
+
+/* ==========================================================================
+   Gate (API anahtarı ekranı)
+   ========================================================================== */
+.gate {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--paper);
+  z-index: 100;
+  padding: 24px;
+}
+.gate-card {
+  width: 100%; max-width: 360px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 32px 28px;
+  text-align: center;
+}
+.gate-eyebrow {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--brass);
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.gate-title { font-size: 28px; margin-bottom: 8px; }
+.gate-help { color: var(--ink-soft); font-size: 14px; margin: 0 0 20px; }
+.gate-card input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  font-family: var(--font-body);
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.gate-card input:focus { outline: 2px solid var(--brass); outline-offset: 1px; }
+.gate-card button {
+  width: 100%;
+  padding: 11px;
+  background: var(--cedar);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.gate-card button:hover { background: var(--cedar-hover); }
+.gate-error { color: var(--error); font-size: 13px; margin: 12px 0 0; }
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+.app { max-width: 980px; margin: 0 auto; padding: 0 24px 80px; }
+
+.topbar {
+  display: flex; align-items: center; gap: 28px;
+  padding: 28px 0 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+}
+.wordmark { font-family: var(--font-display); line-height: 1; margin-right: auto; }
+.wordmark-the {
+  display: block;
+  font-style: italic; font-weight: 400;
+  color: var(--brass);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.wordmark-main { display: block; font-size: 26px; font-weight: 600; }
+
+.tabs { display: flex; gap: 4px; }
+.tab {
+  background: none; border: none;
+  font-family: var(--font-body); font-weight: 600; font-size: 14px;
+  color: var(--ink-soft);
+  padding: 8px 14px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.tab:hover { color: var(--ink); background: rgba(122, 74, 46, 0.06); }
+.tab.active { color: var(--ink); box-shadow: inset 0 -2px 0 var(--brass); }
+
+.key-change {
+  background: none; border: 1px solid var(--line); border-radius: 6px;
+  width: 34px; height: 34px;
+  color: var(--ink-soft); font-size: 15px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.key-change:hover { border-color: var(--brass); color: var(--cedar); }
+
+.view-head { margin-bottom: 22px; }
+.view-head h2 { font-size: 22px; margin-bottom: 4px; }
+.view-sub { color: var(--ink-soft); font-size: 14px; margin: 0; }
+
+.empty-state { color: var(--ink-soft); font-size: 14px; padding: 40px 0; text-align: center; }
+.link-btn {
+  background: none; border: none; color: var(--cedar); font-weight: 700;
+  font-family: var(--font-body); font-size: 14px; text-decoration: underline;
+}
+
+/* ==========================================================================
+   Signature element: puro "etiket" kartı + mühür rozeti
+   ========================================================================== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.cigar-card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--cedar);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px var(--brass-soft), var(--shadow-card);
+  padding: 20px 18px 18px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  text-align: left;
+}
+.cigar-card:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px var(--brass-soft), 0 10px 24px rgba(43,33,26,0.14);
+}
+.cigar-card:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.cigar-seal {
+  position: absolute; top: -12px; right: -10px;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--brass);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  font-family: var(--font-display); font-weight: 700;
+  box-shadow: inset 0 2px 3px rgba(255,255,255,0.35), inset 0 -2px 4px rgba(43,33,26,0.35), 0 2px 6px rgba(43,33,26,0.25);
+  border: 2px solid var(--card);
+}
+.cigar-seal .n { font-size: 17px; line-height: 1; }
+.cigar-seal .lbl { font-family: var(--font-body); font-size: 7px; font-weight: 700; letter-spacing: 0.06em; opacity: 0.85; }
+.cigar-seal.zero { background: var(--ink-soft); }
+
+.cigar-brand { font-family: var(--font-display); font-size: 19px; font-weight: 600; margin-bottom: 1px; }
+.cigar-line { color: var(--ink-soft); font-size: 13px; margin-bottom: 10px; }
+.cigar-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 20px;
+  background: rgba(74, 93, 58, 0.10); color: var(--leaf);
+}
+.tag.strength-full { background: rgba(122, 74, 46, 0.14); color: var(--cedar); }
+.tag.strength-mild { background: rgba(184, 147, 90, 0.16); color: #8a6a35; }
+
+/* ==========================================================================
+   Formlar (ledger-form)
+   ========================================================================== */
+.ledger-form { margin-top: 4px; }
+.field-row { display: flex; gap: 16px; margin-bottom: 14px; }
+.field-row .field { flex: 1; }
+.field-sm { max-width: 140px; }
+.field { display: flex; flex-direction: column; margin-bottom: 14px; }
+.field span { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+.field span em { color: var(--brass); font-style: normal; }
+.field input, .field select, .field textarea {
+  font-family: var(--font-body); font-size: 15px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+}
+.field textarea { resize: vertical; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(184, 147, 90, 0.22);
+}
+
+.form-actions { display: flex; align-items: center; gap: 14px; margin-top: 6px; }
+.btn-primary {
+  background: var(--cedar); color: #fff; border: none;
+  padding: 11px 22px; border-radius: 7px;
+  font-weight: 700; font-size: 14px;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--cedar-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+.btn-secondary {
+  background: transparent; color: var(--cedar); border: 1px solid var(--cedar);
+  padding: 10px 20px; border-radius: 7px; font-weight: 700; font-size: 14px;
+}
+.form-status { font-size: 13px; color: var(--ink-soft); }
+.form-status.ok { color: var(--leaf); font-weight: 700; }
+.form-status.err { color: var(--error); font-weight: 700; }
+
+/* Glossary */
+.glossary-cat { margin-bottom: 30px; }
+.glossary-cat h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brass); margin-bottom: 12px; }
+.g-entry { padding: 12px 0; border-top: 1px solid var(--line); }
+.g-entry:first-of-type { border-top: none; }
+.g-term { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin-bottom: 3px; }
+.g-desc { color: var(--ink-soft); font-size: 14px; line-height: 1.5; margin: 0; }
+
+.add-term { margin-top: 12px; }
+.add-term summary {
+  cursor: pointer; font-weight: 700; color: var(--cedar); font-size: 14px;
+  padding: 10px 0;
+}
+.add-term[open] summary { margin-bottom: 8px; }
+
+/* ==========================================================================
+   Detay modalı
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(43, 33, 26, 0.42);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px; overflow-y: auto; z-index: 90;
+}
+.modal-card {
+  position: relative;
+  width: 100%; max-width: 620px;
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-modal);
+  padding: 32px;
+}
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--line); background: #fff;
+  font-size: 18px; color: var(--ink-soft); line-height: 1;
+}
+.modal-close:hover { border-color: var(--brass); color: var(--cedar); }
+
+.md-title { font-size: 24px; margin-bottom: 2px; padding-right: 30px; }
+.md-sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 4px; }
+.md-stock { font-size: 13px; color: var(--leaf); font-weight: 700; margin-bottom: 18px; }
+
+.md-section { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
+.md-section h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brass); margin-bottom: 12px; }
+
+.md-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 14px; margin-bottom: 4px; }
+.md-fact-label { color: var(--ink-soft); }
+
+.purchase-row, .tasting-row {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 13.5px; padding: 8px 0; border-top: 1px solid var(--line);
+}
+.purchase-row:first-of-type, .tasting-row:first-of-type { border-top: none; }
+.pr-source { font-weight: 600; }
+.pr-meta { color: var(--ink-soft); }
+.pr-price { font-weight: 700; color: var(--cedar); white-space: nowrap; }
+
+.quick-log { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.quick-log input[type="date"] {
+  padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; font-family: var(--font-body); font-size: 14px;
+}
+.detail-toggle {
+  background: none; border: none; color: var(--cedar); font-size: 13px; font-weight: 700;
+  text-decoration: underline; padding: 0; margin-top: 4px;
+}
+.score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 14px; }
+
+.loading, .modal-loading { color: var(--ink-soft); font-size: 14px; padding: 20px 0; }
+
+[hidden] { display: none !important; }
+
+/* ==========================================================================
+   Mobil
+   ========================================================================== */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; gap: 12px 16px; }
+  .tabs { order: 3; width: 100%; }
+  .field-row { flex-direction: column; gap: 14px; }
+  .field-sm { max-width: none; }
+  .md-facts { grid-template-columns: 1fr; }
+  .score-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
