@@ -107,26 +107,85 @@ async function loadStats() {
   );
 }
 
-// --- Inventory (list view) --------------------------------------------------
+// --- Inventory (list view, with search/sort/filter) ------------------------
 let cigarsCache = [];
 
 async function loadInventory() {
+  cigarsCache = await apiFetch("/api/cigars");
+  populateWrapperFilterOptions();
+  applyInventoryFilters();
+}
+
+function populateWrapperFilterOptions() {
+  const sel = document.getElementById("inv-filter-wrapper");
+  const current = sel.value;
+  const distinct = [...new Set(cigarsCache.map((c) => c.wrapper).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">All wrappers</option>` + distinct.map((w) => `<option value="${esc(w)}">${esc(w)}</option>`).join("");
+  if (distinct.includes(current)) sel.value = current;
+}
+
+function applyInventoryFilters() {
+  const search = document.getElementById("inv-search").value.trim().toLowerCase();
+  const sortBy = document.getElementById("inv-sort").value;
+  const strengthFilter = document.getElementById("inv-filter-strength").value;
+  const wrapperFilter = document.getElementById("inv-filter-wrapper").value;
+  const inStockOnly = document.getElementById("inv-in-stock-only").checked;
+
+  let filtered = cigarsCache.filter((c) => {
+    if (search) {
+      const haystack = [c.brand, c.line, c.vitola].filter(Boolean).join(" ").toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    if (strengthFilter && c.strength !== strengthFilter) return false;
+    if (wrapperFilter && c.wrapper !== wrapperFilter) return false;
+    if (inStockOnly && Number(c.quantity_remaining ?? 0) <= 0) return false;
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    switch (sortBy) {
+      case "rating":
+        return (b.overall_score || 0) - (a.overall_score || 0);
+      case "smoked":
+        return b.total_smoked - a.total_smoked;
+      case "stock":
+        return Number(b.quantity_remaining ?? 0) - Number(a.quantity_remaining ?? 0);
+      case "newest":
+        return new Date(b.created_at) - new Date(a.created_at);
+      case "name":
+      default:
+        return [a.brand, a.line].filter(Boolean).join(" ").localeCompare([b.brand, b.line].filter(Boolean).join(" "));
+    }
+  });
+
+  const filtersActive = Boolean(search || strengthFilter || wrapperFilter || inStockOnly);
+  renderInventoryList(filtered, filtersActive);
+}
+
+function renderInventoryList(cigars, filtersActive) {
   const list = document.getElementById("inventory-list");
   const empty = document.getElementById("inventory-empty");
+  const noMatch = document.getElementById("inventory-no-match");
   const count = document.getElementById("inventory-count");
-  list.innerHTML = `<p class="loading">Loading…</p>`;
-
-  const cigars = await apiFetch("/api/cigars");
-  cigarsCache = cigars;
   list.innerHTML = "";
 
-  if (cigars.length === 0) {
+  if (cigarsCache.length === 0) {
     empty.hidden = false;
+    noMatch.hidden = true;
     count.textContent = "";
     return;
   }
   empty.hidden = true;
-  count.textContent = `${cigars.length} cigar${cigars.length === 1 ? "" : "s"}`;
+
+  if (cigars.length === 0) {
+    noMatch.hidden = false;
+    count.textContent = `0 of ${cigarsCache.length} cigars`;
+    return;
+  }
+  noMatch.hidden = true;
+  count.textContent = filtersActive
+    ? `${cigars.length} of ${cigarsCache.length} cigars`
+    : `${cigars.length} cigar${cigars.length === 1 ? "" : "s"}`;
 
   for (const c of cigars) {
     const remaining = Number(c.quantity_remaining ?? 0);
@@ -135,8 +194,8 @@ async function loadInventory() {
     row.className = "cigar-row";
     row.addEventListener("click", () => openCigarModal(c.id));
 
-    const photoHtml = c.photo_url
-      ? `<img class="cigar-row-photo" src="${esc(c.photo_url)}" alt="" />`
+    const photoHtml = c.has_photo
+      ? `<img class="cigar-row-photo" src="/photos/cigars/${c.id}" alt="" />`
       : `<div class="cigar-row-photo-placeholder">${esc((c.brand || "?").charAt(0))}</div>`;
 
     const title = [c.brand, c.line].filter(Boolean).join(" ");
@@ -158,6 +217,18 @@ async function loadInventory() {
     list.appendChild(row);
   }
 }
+
+["inv-search"].forEach((id) => document.getElementById(id).addEventListener("input", applyInventoryFilters));
+["inv-sort", "inv-filter-strength", "inv-filter-wrapper", "inv-in-stock-only"].forEach((id) =>
+  document.getElementById(id).addEventListener("change", applyInventoryFilters)
+);
+document.getElementById("inv-clear-filters").addEventListener("click", () => {
+  document.getElementById("inv-search").value = "";
+  document.getElementById("inv-filter-strength").value = "";
+  document.getElementById("inv-filter-wrapper").value = "";
+  document.getElementById("inv-in-stock-only").checked = false;
+  applyInventoryFilters();
+});
 
 // --- Cigar detail modal ------------------------------------------------------
 const modal = document.getElementById("modal");
@@ -329,7 +400,7 @@ function renderCigarModal(c) {
         <h3 class="md-title">${esc(title)}</h3>
         <p class="md-sub">${esc(c.vitola) || "&nbsp;"}</p>
       </div>
-      ${c.photo_url ? `<img class="md-photo" src="${esc(c.photo_url)}" alt="" id="md-photo-img" />` : ""}
+      ${c.has_photo ? `<img class="md-photo" src="/photos/cigars/${c.id}" alt="" id="md-photo-img" />` : ""}
     </div>
     <div class="md-stock-row">
       <p class="md-stock">${remaining} left &nbsp;·&nbsp; ${c.total_bought} bought, ${c.total_smoked} smoked</p>
