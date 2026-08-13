@@ -17,15 +17,12 @@ router.get(
         (SELECT COUNT(*) FROM tastings) AS total_smoked
     `);
 
-    // En yüksek ortalama puanlılar — en az bir puanlı tadımı olması şart,
-    // yoksa hiç tadılmamış puronun "puanı" olmaz.
+    // Puanlama artık puronun kendisinde tek bir alan (0-5), tadımlardan bağımsız.
     const topRated = await pool.query(`
-      SELECT c.id, c.brand, c.line, ROUND(AVG(t.overall_score)) AS avg_score, COUNT(t.overall_score) AS tasting_count
-      FROM cigars c
-      JOIN tastings t ON t.cigar_id = c.id
-      WHERE t.overall_score IS NOT NULL
-      GROUP BY c.id
-      ORDER BY avg_score DESC, tasting_count DESC
+      SELECT id, brand, line, overall_score
+      FROM cigars
+      WHERE overall_score IS NOT NULL
+      ORDER BY overall_score DESC, brand
       LIMIT 5
     `);
 
