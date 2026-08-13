@@ -84,10 +84,16 @@ button { font-family: var(--font-body); cursor: pointer; }
    Dashboard (envanter üstü özet)
    ========================================================================== */
 .dashboard { margin-bottom: 32px; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
-.dash-totals { display: flex; gap: 36px; margin-bottom: 24px; flex-wrap: wrap; }
+.dash-totals { display: flex; align-items: flex-end; gap: 36px; margin-bottom: 24px; flex-wrap: wrap; }
 .dash-stat { display: flex; flex-direction: column; }
 .dash-num { font-family: var(--font-display); font-size: 34px; font-weight: 600; color: var(--cedar); line-height: 1; }
 .dash-label { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+.dash-sensors { margin-left: auto; display: flex; gap: 22px; flex-wrap: wrap; }
+.dash-sensor { display: flex; flex-direction: column; align-items: flex-end; }
+.dash-sensor-name { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
+.dash-sensor-reading { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--leaf); line-height: 1; }
+.dash-sensor-waiting { font-size: 12px; color: var(--brass); font-style: italic; }
 
 .dash-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
 .dash-list h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brass); margin-bottom: 10px; }
@@ -185,6 +191,21 @@ button { font-family: var(--font-body); cursor: pointer; }
    Formlar (ledger-form)
    ========================================================================== */
 .ledger-form { margin-top: 4px; }
+
+.extract-box {
+  background: var(--card);
+  border: 1px dashed var(--brass);
+  border-radius: 8px;
+  padding: 16px 18px 4px;
+  margin-bottom: 22px;
+}
+.extract-row { display: flex; gap: 10px; }
+.extract-row input { flex: 1; }
+.extract-notes { font-size: 13px; color: var(--ink-soft); font-style: italic; line-height: 1.5; margin: 4px 0 12px; }
+#extract-btn:disabled { opacity: 0.6; cursor: default; }
+
+.photo-preview { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.photo-preview img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
 .field-row { display: flex; gap: 16px; margin-bottom: 14px; }
 .field-row .field { flex: 1; }
 .field-sm { max-width: 140px; }
