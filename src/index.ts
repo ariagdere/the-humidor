@@ -10,25 +10,28 @@ import humidorsRouter from "./routes/humidors";
 import sensorRouter from "./routes/sensor";
 import statsRouter from "./routes/stats";
 import extractRouter from "./routes/extract";
+import tastingsRouter from "./routes/tastings";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// app.js'i statik sunmuyoruz — içindeki "__API_KEY__" yer tutucusunu burada,
+// index.html'i statik sunmuyoruz — içindeki "__API_KEY__" yer tutucusunu burada,
 // sunucu tarafında, Railway'deki gerçek API_KEY değişkeniyle değiştiriyoruz.
 // Böylece anahtarın gerçek değeri hiçbir zaman public repoya girmiyor, sadece
-// Railway'in Variables sekmesinde duruyor; tarayıcıya sadece işlenmiş sonuç gider.
-app.get("/app.js", (_req, res) => {
-  const filePath = path.join(__dirname, "..", "public", "app.js");
+// Railway'in Variables sekmesinde duruyor. app.js kendisi ise tamamen statik
+// kalıyor (aşağıdaki express.static) — index.html ona yüklenmeden önce
+// window.__HUMIDOR_API_KEY__'i enjekte ediyor.
+app.get("/", (_req, res) => {
+  const filePath = path.join(__dirname, "..", "public", "index.html");
   const template = fs.readFileSync(filePath, "utf8");
   const content = template.replace('"__API_KEY__"', JSON.stringify(process.env.API_KEY || ""));
-  res.type("application/javascript").send(content);
+  res.type("text/html").send(content);
 });
 
-// Diğer arayüz dosyaları (index.html, styles.css, icon.svg) — auth'tan önce,
-// çünkü tarayıcı bunları indirdikten sonra app.js zaten anahtarı otomatik taşıyor.
+// Diğer arayüz dosyaları (app.js, styles.css, favicon.svg) — auth'tan önce,
+// çünkü tarayıcı bunları indirdikten sonra index.html zaten anahtarı taşıyor.
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Basit sağlık kontrolü — Railway'in deploy sonrası kontrolü ve senin
@@ -45,6 +48,7 @@ app.use("/api/humidors", humidorsRouter);
 app.use("/api/sensor", sensorRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/extract", extractRouter);
+app.use("/api/tastings", tastingsRouter);
 
 // Genel hata yakalayıcı — asyncHandler'dan next(err) ile buraya düşer.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
