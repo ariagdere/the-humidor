@@ -79,6 +79,7 @@ async function loadStats() {
   const stats = await apiFetch("/api/stats");
   document.getElementById("stat-types").textContent = stats.total_cigar_types;
   document.getElementById("stat-stock").textContent = stats.total_in_stock;
+  document.getElementById("stat-bought").textContent = stats.total_bought;
   document.getElementById("stat-smoked").textContent = stats.total_smoked;
 
   const lists = [
@@ -143,7 +144,7 @@ async function loadInventory() {
     row.innerHTML = `
       ${photoHtml}
       <div class="cigar-row-main">
-        <div class="cigar-row-title">${esc(title)}</div>
+        <div class="cigar-row-title">${esc(title)}${c.strength ? ` ${strengthBadgeHtml(c.strength)}` : ""}</div>
         <div class="cigar-row-sub">${esc(c.vitola) || "&nbsp;"}</div>
       </div>
       <div class="cigar-row-nums">
@@ -244,6 +245,11 @@ function strengthLabel(s) {
   return s.split("-").map(cap).join("-");
 }
 
+function strengthBadgeHtml(s) {
+  if (!s) return "";
+  return `<span class="strength-badge strength-${s}">${strengthLabel(s)}</span>`;
+}
+
 function renderCigarModal(c) {
   const remaining = Number(c.quantity_remaining ?? 0);
   currentCigarData = c;
@@ -251,10 +257,10 @@ function renderCigarModal(c) {
   const title = [c.brand, c.line].filter(Boolean).join(" ");
 
   const factRows = [
-    factLineHtml("Filler", c.filler, "filler"),
-    factLineHtml("Binder", c.binder, "binder"),
     factLineHtml("Wrapper", c.wrapper, "wrapper"),
     factLineHtml("Origin", c.origin, "origin"),
+    factLineHtml("Size", c.vitola, null),
+    factLineHtml("Strength", c.strength ? strengthLabel(c.strength) : null, null),
     factLineHtml("Length", c.length_mm ? `${c.length_mm} mm` : null, null),
     factLineHtml("Ring gauge", c.ring_gauge, null),
   ].filter(Boolean);
@@ -262,7 +268,6 @@ function renderCigarModal(c) {
   const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced;
 
   const lastPurchase = c.purchases[0];
-  const olderPurchases = c.purchases.slice(1);
   const lastPurchaseHtml = lastPurchase
     ? `<div class="purchase-row" data-purchase-id="${lastPurchase.id}">
          <div>
@@ -280,7 +285,6 @@ function renderCigarModal(c) {
     : `<p class="pr-meta">No purchases logged yet.</p>`;
 
   const lastTasting = c.tastings[0];
-  const olderTastings = c.tastings.slice(1);
   const lastTastingHtml = lastTasting
     ? tastingLineHtml(lastTasting)
     : `<p class="pr-meta">No tastings logged yet.</p>`;
@@ -307,7 +311,7 @@ function renderCigarModal(c) {
         <div class="field-row">
           <label class="field"><span>Brand <em>*</em></span><input name="brand" required value="${esc(c.brand)}" /></label>
           <label class="field"><span>Line</span><input name="line" value="${esc(c.line || "")}" /></label>
-          <label class="field"><span>Vitola</span><input name="vitola" value="${esc(c.vitola || "")}" /></label>
+          <label class="field"><span>Size</span><input name="vitola" value="${esc(c.vitola || "")}" /></label>
         </div>
         <div class="field-row">
           <label class="field field-sm"><span>Length (mm)</span><input name="length_mm" type="number" min="0" value="${c.length_mm ?? ""}" /></label>
@@ -315,25 +319,39 @@ function renderCigarModal(c) {
           <label class="field field-sm"><span>Strength</span>${strengthSelectHtml("strength", c.strength)}</label>
         </div>
         <div class="field-row">
-          <label class="field"><span>Filler</span><input name="filler" list="dl-filler" value="${esc(c.filler || "")}" /></label>
-          <label class="field"><span>Binder</span><input name="binder" list="dl-binder" value="${esc(c.binder || "")}" /></label>
-          <label class="field"><span>Wrapper</span><input name="wrapper" list="dl-wrapper" value="${esc(c.wrapper || "")}" /></label>
+          <label class="field">
+            <span>Wrapper</span>
+            <div class="combo" data-category="wrapper">
+              <input name="wrapper" type="text" autocomplete="off" value="${esc(c.wrapper || "")}" />
+              <div class="combo-options" hidden></div>
+            </div>
+          </label>
+          <label class="field">
+            <span>Origin</span>
+            <div class="combo" data-category="origin">
+              <input name="origin" type="text" autocomplete="off" value="${esc(c.origin || "")}" />
+              <div class="combo-options" hidden></div>
+            </div>
+          </label>
         </div>
-        <label class="field"><span>Origin</span><input name="origin" list="dl-origin" value="${esc(c.origin || "")}" /></label>
         <label class="field"><span>Expected flavor profile</span><textarea name="flavor_profile" rows="2">${esc(c.flavor_profile || "")}</textarea></label>
         <label class="field"><span>Photo URL</span><input name="photo_url" type="url" value="${esc(c.photo_url || "")}" /></label>
         <label class="field"><span>Notes</span><textarea name="notes" rows="2">${esc(c.notes || "")}</textarea></label>
         <div class="form-actions">
           <button type="submit" class="btn-primary">Save profile</button>
           <span class="form-status" data-status-for="profile"></span>
+          <button type="button" id="delete-cigar-btn" class="btn-icon-danger" title="Delete this cigar" aria-label="Delete this cigar">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16z"/></svg>
+          </button>
         </div>
+        <span class="form-status" data-status-for="delete"></span>
       </form>
     </details>
 
     <div class="md-section">
       <h4>Rating</h4>
       ${hasRating
-        ? `<div class="md-facts">${ratingFactsHtml(c)}</div>${c.scoring_notes ? `<p class="pr-meta" style="margin-top:6px">${esc(c.scoring_notes)}</p>` : ""}`
+        ? `<div class="md-facts">${ratingFactsHtml(c)}</div>${c.scoring_notes ? `<p class="pr-meta" style="margin-top:6px"><span class="md-fact-label">Notes:</span> ${esc(c.scoring_notes)}</p>` : ""}`
         : `<p class="pr-meta">Not rated yet.</p>`}
       <details class="add-term" id="rating-details" style="margin-top:10px">
         <summary>${hasRating ? "Edit rating" : "Add rating"}</summary>
@@ -363,8 +381,8 @@ function renderCigarModal(c) {
       ${lastPurchaseHtml}
       <form id="purchase-form" class="ledger-form" style="margin-top:10px">
         <div class="field-row">
-          <label class="field"><span>Source</span><input name="source" placeholder="sarayasigara.com" /></label>
-          <label class="field field-sm"><span>Date</span><input name="purchase_date" type="date" /></label>
+          <label class="field"><span>Source</span><input name="source" placeholder="Where did you purchase?" /></label>
+          <label class="field field-sm"><span>Date</span><input name="purchase_date" type="date" value="${todayISO()}" /></label>
         </div>
         <div class="field-row">
           <label class="field field-sm"><span>Quantity *</span><input name="quantity" type="number" min="1" required /></label>
@@ -376,10 +394,10 @@ function renderCigarModal(c) {
           <span class="form-status" data-status-for="purchase"></span>
         </div>
       </form>
-      ${olderPurchases.length ? `
+      ${c.purchases.length > 1 ? `
         <details class="add-term" style="margin-top:12px">
-          <summary>Show ${olderPurchases.length} earlier purchase${olderPurchases.length === 1 ? "" : "s"}</summary>
-          <div class="tasting-log">${olderPurchases.map(purchaseLineHtml).join("")}</div>
+          <summary>Show all ${c.purchases.length} purchases</summary>
+          <div class="tasting-log">${c.purchases.map(purchaseLineHtml).join("")}</div>
         </details>` : ""}
     </div>
 
@@ -392,7 +410,7 @@ function renderCigarModal(c) {
       <form id="tasting-form" class="ledger-form" style="margin-top:10px">
         <div class="field-row">
           <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
-          <label class="field"><span>Location</span><input name="location" placeholder="Home, lounge, backyard…" /></label>
+          <label class="field"><span>Location</span><input name="location" placeholder="Where did you smoke?" /></label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="tasting-submit-btn">Log tasting</button>
@@ -400,21 +418,17 @@ function renderCigarModal(c) {
           <span class="form-status" data-status-for="tasting"></span>
         </div>
       </form>
-      ${olderTastings.length ? `
+      ${c.tastings.length > 1 ? `
         <details class="add-term" id="tasting-details" style="margin-top:12px">
-          <summary>Show ${olderTastings.length} earlier tasting${olderTastings.length === 1 ? "" : "s"}</summary>
-          <div class="tasting-log">${olderTastings.map(tastingLineHtml).join("")}</div>
+          <summary>Show all ${c.tastings.length} tastings</summary>
+          <div class="tasting-log">${c.tastings.map(tastingLineHtml).join("")}</div>
         </details>` : ""}
-    </div>
-
-    <div class="md-section md-danger-zone">
-      <button type="button" id="delete-cigar-btn" class="btn-danger">Delete this cigar</button>
-      <span class="form-status" data-status-for="delete"></span>
     </div>
   `;
 
   wireModalForms(c.id);
-  enableDatalistReopen(document.getElementById("profile-form"));
+  wireCombo(document.querySelector('#profile-form .combo[data-category="wrapper"]'), "wrapper");
+  wireCombo(document.querySelector('#profile-form .combo[data-category="origin"]'), "origin");
 }
 
 function openLightbox(src) {
@@ -621,23 +635,58 @@ function wireModalForms(cigarId) {
   });
 }
 
-// index.html'de olan datalist'li input'lar (filler/binder/wrapper/origin), bir
-// değer zaten girilmişken tıklanınca bazı tarayıcılarda öneri listesini
-// otomatik açmıyor — odaklanınca değeri boşaltıp geri koyarak tarayıcının
-// filtre durumunu sıfırlıyoruz, bu öneri listesinin tekrar tam açılmasını sağlıyor.
-function enableDatalistReopen(root) {
-  root.querySelectorAll("input[list]").forEach((input) => {
-    input.addEventListener("focus", () => {
-      const val = input.value;
-      input.value = "";
-      input.value = val;
-    });
+// Native <input list="..."> (datalist) bazı tarayıcılarda, alanda zaten bir
+// değer varken odaklanınca öneri listesini açmıyor — bu yüzden Wrapper/Origin
+// için elle kurulmuş, tamamen kontrol edilebilir bir açılır liste kullanıyoruz.
+function wireCombo(container, category) {
+  if (!container) return;
+  const input = container.querySelector("input");
+  const dropdown = container.querySelector(".combo-options");
+
+  function renderOptions(filter) {
+    const f = (filter || "").toLowerCase();
+    const matches = glossaryCache
+      .filter((g) => g.category === category && g.term.toLowerCase().includes(f));
+    if (matches.length === 0) {
+      dropdown.hidden = true;
+      return;
+    }
+    dropdown.innerHTML = matches.map((g) => `<div class="combo-option">${esc(g.term)}</div>`).join("");
+    dropdown.hidden = false;
+  }
+
+  // Odaklanınca MEVCUT değeri yok sayıp tüm seçenekleri gösteriyoruz — asıl şikayet buydu.
+  input.addEventListener("focus", () => renderOptions(""));
+  input.addEventListener("input", () => renderOptions(input.value));
+  input.addEventListener("blur", () => setTimeout(() => { dropdown.hidden = true; }, 150));
+
+  dropdown.addEventListener("mousedown", (e) => {
+    const opt = e.target.closest(".combo-option");
+    if (!opt) return;
+    input.value = opt.textContent;
+    dropdown.hidden = true;
   });
 }
 
 // --- New cigar form ----------------------------------------------------------
 const cigarForm = document.getElementById("cigar-form");
-enableDatalistReopen(cigarForm);
+
+// AI çıkarımı brand/line sınırını her seferinde aynı çizmeyebilir (örn. bir
+// seferinde brand="Nub" line="Connecticut", başka seferinde brand="Nub"
+// line="Nub Connecticut"). Tam eşleşme yerine, birleşik marka+seri metninin
+// biri diğerini içeriyor mu diye bakıyoruz — bu iki durumu da yakalıyor.
+function normalizeForCompare(s) {
+  return (s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function looksLikeDuplicate(newBrand, newLine, existingBrand, existingLine) {
+  const a = normalizeForCompare([newBrand, newLine].filter(Boolean).join(" "));
+  const b = normalizeForCompare([existingBrand, existingLine].filter(Boolean).join(" "));
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+wireCombo(document.querySelector('#cigar-form .combo[data-category="wrapper"]'), "wrapper");
+wireCombo(document.querySelector('#cigar-form .combo[data-category="origin"]'), "origin");
 
 cigarForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -645,10 +694,7 @@ cigarForm.addEventListener("submit", async (e) => {
   const data = Object.fromEntries(new FormData(cigarForm));
   Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
 
-  const dupe = cigarsCache.find((c) =>
-    c.brand.toLowerCase() === (data.brand || "").toLowerCase() &&
-    (c.line || "").toLowerCase() === (data.line || "").toLowerCase()
-  );
+  const dupe = cigarsCache.find((c) => looksLikeDuplicate(data.brand, data.line, c.brand, c.line));
   if (dupe) {
     const label = [dupe.brand, dupe.line].filter(Boolean).join(" ");
     const goToExisting = confirm(
@@ -680,7 +726,7 @@ cigarForm.addEventListener("submit", async (e) => {
 });
 
 // --- Fill from link (AI-assisted) -------------------------------------------
-const CIGAR_FIELDS = ["brand", "line", "vitola", "length_mm", "ring_gauge", "filler", "binder", "wrapper", "origin", "strength", "flavor_profile"];
+const CIGAR_FIELDS = ["brand", "line", "vitola", "length_mm", "ring_gauge", "wrapper", "origin", "strength", "flavor_profile"];
 
 document.getElementById("extract-btn").addEventListener("click", async () => {
   const btn = document.getElementById("extract-btn");
@@ -732,7 +778,6 @@ const CAT_LABELS = { wrapper: "Wrapper", binder: "Binder", filler: "Filler", ori
 async function loadGlossary() {
   glossaryCache = await apiFetch("/api/glossary");
   renderGlossary();
-  fillDatalists();
 }
 
 function renderGlossary() {
@@ -752,17 +797,6 @@ function renderGlossary() {
         </div>`).join("")}
     `;
     container.appendChild(section);
-  }
-}
-
-function fillDatalists() {
-  const map = { wrapper: "dl-wrapper", binder: "dl-binder", filler: "dl-filler", origin: "dl-origin" };
-  for (const [cat, id] of Object.entries(map)) {
-    const dl = document.getElementById(id);
-    dl.innerHTML = glossaryCache
-      .filter((g) => g.category === cat)
-      .map((g) => `<option value="${esc(g.term)}"></option>`)
-      .join("");
   }
 }
 
