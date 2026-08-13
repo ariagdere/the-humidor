@@ -8,17 +8,19 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const WEB_FETCH_BETA = "web-fetch-2025-09-10";
 const MODEL = "claude-sonnet-5";
 
-// Claude bazen "medium-full", "medium to full" gibi birleşik değerler döndürüyor;
-// bizim strength sütunumuz sadece mild/medium/full kabul ediyor (bkz. migration).
-// Uymayan bir değeri veritabanı hatasıyla kullanıcıya yansıtmak yerine burada
-// makul bir varsayıma indirgiyoruz — kullanıcı zaten formu onaylamadan kaydetmiyor.
+// Claude bazen "medium to full" gibi birleşik değerler döndürüyor; bizim
+// strength sütunumuz artık 5 kademeli: mild, mild-medium, medium, medium-full, full.
 function normalizeStrength(raw: unknown): string | null {
   if (typeof raw !== "string" || !raw.trim()) return null;
   const s = raw.toLowerCase();
-  if (s.includes("full") && s.includes("medium")) return "medium";
-  if (s.includes("full")) return "full";
-  if (s.includes("medium")) return "medium";
-  if (s.includes("mild") || s.includes("light")) return "mild";
+  const hasMild = s.includes("mild") || s.includes("light");
+  const hasMedium = s.includes("medium");
+  const hasFull = s.includes("full") || s.includes("strong");
+  if (hasMild && hasMedium) return "mild-medium";
+  if (hasMedium && hasFull) return "medium-full";
+  if (hasFull) return "full";
+  if (hasMedium) return "medium";
+  if (hasMild) return "mild";
   return null;
 }
 
@@ -58,24 +60,26 @@ router.post(
       (byCategory[row.category] ??= []).push(row.term);
     }
 
-    const prompt = `Şu link bir puro ürün sayfası: ${url}
+    const prompt = `This link is a cigar product page: ${url}
 
-web_fetch aracıyla bu sayfayı oku ve şu alanları çıkar: brand, line, vitola, length_mm, ring_gauge, filler, binder, wrapper, origin, strength, flavor_profile, photo_url.
+Use the web_fetch tool to read this page and extract: brand, line, vitola, length_mm (whole number, no decimals), ring_gauge, filler, binder, wrapper, origin, strength, flavor_profile, photo_url.
 
-Bilinen glossary terimleri (eşleşen varsa aynen bu isimlerle yaz, yoksa sayfada gördüğün gibi yaz):
-- wrapper: ${byCategory.wrapper.join(", ") || "(henüz yok)"}
-- binder: ${byCategory.binder.join(", ") || "(henüz yok)"}
-- filler: ${byCategory.filler.join(", ") || "(henüz yok)"}
-- origin: ${byCategory.origin.join(", ") || "(henüz yok)"}
+Known glossary terms — if one matches, use that exact term; otherwise write it as it appears on the page:
+- wrapper: ${byCategory.wrapper.join(", ") || "(none yet)"}
+- binder: ${byCategory.binder.join(", ") || "(none yet)"}
+- filler: ${byCategory.filler.join(", ") || "(none yet)"}
+- origin: ${byCategory.origin.join(", ") || "(none yet)"}
 
-strength alanı için SADECE şu üç değerden birini kullan: mild, medium, full — sayfada "medium to full" gibi birleşik bir ifade görürsen, daha baskın olanına yuvarla.
+For strength, use ONLY one of these five values: mild, mild-medium, medium, medium-full, full.
 
-Sayfada bulamadığın alanlar için (özellikle flavor_profile ve photo_url), bu ürünün marka/seri/vitola bilgisiyle web_search aracını kullanarak tamamla. photo_url için ürünün gerçek fotoğrafına doğrudan giden bir görsel dosyası URL'i bulmaya çalış (sayfa linki değil, doğrudan .jpg/.png gibi bir dosya).
+For anything not on the page (especially flavor_profile and photo_url), use the web_search tool with this product's brand/line/vitola to fill the gap. For photo_url, prefer a roughly SQUARE product photo if one is available — we don't crop or resize it on our end, so an already-square image looks best.
 
-Cevabında uzun bir açıklama yazma — sayfada ne bulduğunu ve web'de neyi aradığını 2-3 cümleyle özetle, sonra doğrudan JSON'a geç.
+Write all content in English regardless of the source page's language — this includes flavor_profile and confidence_notes.
 
-Cevabının SONUNDA, başka hiçbir şey olmadan, sadece şu alanları içeren bir JSON nesnesi ver (bulamadığın alanlar için null kullan):
-{"brand": "...", "line": "...", "vitola": "...", "length_mm": null, "ring_gauge": null, "filler": "...", "binder": "...", "wrapper": "...", "origin": "...", "strength": "...", "flavor_profile": "...", "photo_url": "...", "confidence_notes": "sayfada neyi bulduğun, neyi web'de arayarak tamamladığın hakkında kısa bir not"}`;
+Keep your reasoning brief: summarize what you found on the page and what you searched for in 2-3 sentences, then go straight to the JSON.
+
+At the END of your reply, with nothing else, give only a JSON object with these fields (use null for anything you couldn't find):
+{"brand": "...", "line": "...", "vitola": "...", "length_mm": null, "ring_gauge": null, "filler": "...", "binder": "...", "wrapper": "...", "origin": "...", "strength": "...", "flavor_profile": "...", "photo_url": "...", "confidence_notes": "a short note on what came from the page vs. what you filled in via search"}`;
 
     const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -114,6 +118,9 @@ Cevabının SONUNDA, başka hiçbir şey olmadan, sadece şu alanları içeren b
     }
 
     extracted.strength = normalizeStrength(extracted.strength);
+    if (typeof extracted.length_mm === "number") {
+      extracted.length_mm = Math.round(extracted.length_mm);
+    }
 
     res.json(extracted);
   })
