@@ -107,6 +107,8 @@ async function loadStats() {
 }
 
 // --- Inventory (list view) --------------------------------------------------
+let cigarsCache = [];
+
 async function loadInventory() {
   const list = document.getElementById("inventory-list");
   const empty = document.getElementById("inventory-empty");
@@ -114,6 +116,7 @@ async function loadInventory() {
   list.innerHTML = `<p class="loading">Loading…</p>`;
 
   const cigars = await apiFetch("/api/cigars");
+  cigarsCache = cigars;
   list.innerHTML = "";
 
   if (cigars.length === 0) {
@@ -225,15 +228,20 @@ function factLineHtml(label, value, category) {
   return `<div><span class="md-fact-label">${label}:</span> ${esc(value)}${icon}</div>`;
 }
 
-const RATING_TAG_FIELDS = [
-  ["draw_score", "Draw", "/5"], ["burn_score", "Burn", "/5"], ["construction_score", "Construction", "/5"],
-  ["finish_score", "Finish", "/5"], ["overall_score", "Overall", "/5"],
-];
+function ratingFactsHtml(c) {
+  const rows = [
+    ["Draw", c.draw_score ? `${c.draw_score}/5` : null],
+    ["Burn", c.burn_score ? `${c.burn_score}/5` : null],
+    ["Construction", c.construction_score ? `${c.construction_score}/5` : null],
+    ["Finish", c.finish_score ? `${c.finish_score}/5` : null],
+    ["Overall", c.overall_score ? `${c.overall_score}/5` : null],
+    ["Strength felt", c.strength_experienced ? strengthLabel(c.strength_experienced) : null],
+  ].filter(([, v]) => v);
+  return rows.map(([l, v]) => `<div><span class="md-fact-label">${l}:</span> ${esc(v)}</div>`).join("");
+}
 
-function ratingSummaryHtml(c) {
-  const tags = RATING_TAG_FIELDS.filter(([k]) => c[k]).map(([k, label, suffix]) => `${label} ${c[k]}${suffix}`);
-  if (c.strength_experienced) tags.push(cap(c.strength_experienced).replace(/-(\w)/, (_, ch) => "-" + ch.toUpperCase()));
-  return tags.length ? tags.join(" · ") : "Not rated — click to add";
+function strengthLabel(s) {
+  return s.split("-").map(cap).join("-");
 }
 
 function renderCigarModal(c) {
@@ -251,26 +259,30 @@ function renderCigarModal(c) {
     factLineHtml("Ring gauge", c.ring_gauge, null),
   ].filter(Boolean);
 
+  const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced;
+
   const lastPurchase = c.purchases[0];
+  const olderPurchases = c.purchases.slice(1);
   const lastPurchaseHtml = lastPurchase
-    ? `<div class="purchase-row">
+    ? `<div class="purchase-row" data-purchase-id="${lastPurchase.id}">
          <div>
            <div class="pr-source">${esc(lastPurchase.source || "Unknown source")}</div>
            <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs</div>
          </div>
-         <div class="pr-price">${fmtMoney(lastPurchase.unit_price) || ""}</div>
+         <div style="text-align:right">
+           <div class="pr-price">${fmtMoney(lastPurchase.unit_price) || ""}</div>
+           <div class="tasting-line-actions" style="margin-top:5px; justify-content:flex-end">
+             <button type="button" class="purchase-edit-btn" data-id="${lastPurchase.id}">Edit</button>
+             <button type="button" class="purchase-delete-btn danger" data-id="${lastPurchase.id}">Delete</button>
+           </div>
+         </div>
        </div>`
-    : `<p class="pr-meta">No purchases logged yet.</p>`;
-  const allPurchasesHtml = c.purchases.length
-    ? c.purchases.map(purchaseLineHtml).join("")
     : `<p class="pr-meta">No purchases logged yet.</p>`;
 
   const lastTasting = c.tastings[0];
+  const olderTastings = c.tastings.slice(1);
   const lastTastingHtml = lastTasting
-    ? `<div class="tasting-line" style="border-top:none"><span class="tasting-line-text">${fmtDate(lastTasting.tasting_date)}${lastTasting.location ? ` · ${esc(lastTasting.location)}` : ""}</span></div>`
-    : `<p class="pr-meta">No tastings logged yet.</p>`;
-  const allTastingsHtml = c.tastings.length
-    ? c.tastings.map(tastingLineHtml).join("")
+    ? tastingLineHtml(lastTasting)
     : `<p class="pr-meta">No tastings logged yet.</p>`;
 
   modalBody.innerHTML = `
@@ -320,8 +332,11 @@ function renderCigarModal(c) {
 
     <div class="md-section">
       <h4>Rating</h4>
-      <details class="add-term" id="rating-details">
-        <summary>${ratingSummaryHtml(c)}</summary>
+      ${hasRating
+        ? `<div class="md-facts">${ratingFactsHtml(c)}</div>${c.scoring_notes ? `<p class="pr-meta" style="margin-top:6px">${esc(c.scoring_notes)}</p>` : ""}`
+        : `<p class="pr-meta">Not rated yet.</p>`}
+      <details class="add-term" id="rating-details" style="margin-top:10px">
+        <summary>${hasRating ? "Edit rating" : "Add rating"}</summary>
         <form id="rating-form" class="ledger-form" style="margin-top:12px">
           <div class="rating-grid">
             <label class="field"><span>Draw (1-5)</span><input name="draw_score" type="number" min="1" max="5" value="${c.draw_score ?? ""}" /></label>
@@ -346,27 +361,26 @@ function renderCigarModal(c) {
         <span class="tasting-count">${c.total_bought} bought</span>
       </div>
       ${lastPurchaseHtml}
-      <details class="add-term" style="margin-top:10px">
-        <summary>Show all &amp; add</summary>
-        <div class="tasting-log">${allPurchasesHtml}</div>
-        <form id="purchase-form" class="ledger-form" style="margin-top:12px">
-          <div class="field-row">
-            <label class="field"><span>Source</span><input name="source" placeholder="sarayasigara.com" /></label>
-            <label class="field field-sm"><span>Date</span><input name="purchase_date" type="date" /></label>
-          </div>
-          <div class="field-row">
-            <label class="field field-sm"><span>Quantity *</span><input name="quantity" type="number" min="1" required /></label>
-            <label class="field field-sm"><span>Unit price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
-            <label class="field"><span>Box code</span><input name="box_code" /></label>
-          </div>
-          <label class="field"><span>Reference link</span><input name="reference_url" type="url" placeholder="https://…" /></label>
-          <div class="form-actions">
-            <button type="submit" class="btn-primary" id="purchase-submit-btn">Save</button>
-            <button type="button" id="purchase-cancel-edit" class="link-btn" hidden>Cancel edit</button>
-            <span class="form-status" data-status-for="purchase"></span>
-          </div>
-        </form>
-      </details>
+      <form id="purchase-form" class="ledger-form" style="margin-top:10px">
+        <div class="field-row">
+          <label class="field"><span>Source</span><input name="source" placeholder="sarayasigara.com" /></label>
+          <label class="field field-sm"><span>Date</span><input name="purchase_date" type="date" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field field-sm"><span>Quantity *</span><input name="quantity" type="number" min="1" required /></label>
+          <label class="field field-sm"><span>Unit price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="purchase-submit-btn">Save</button>
+          <button type="button" id="purchase-cancel-edit" class="link-btn" hidden>Cancel edit</button>
+          <span class="form-status" data-status-for="purchase"></span>
+        </div>
+      </form>
+      ${olderPurchases.length ? `
+        <details class="add-term" style="margin-top:12px">
+          <summary>Show ${olderPurchases.length} earlier purchase${olderPurchases.length === 1 ? "" : "s"}</summary>
+          <div class="tasting-log">${olderPurchases.map(purchaseLineHtml).join("")}</div>
+        </details>` : ""}
     </div>
 
     <div class="md-section">
@@ -375,21 +389,22 @@ function renderCigarModal(c) {
         <span class="tasting-count">${c.total_smoked} smoked</span>
       </div>
       ${lastTastingHtml}
-      <details class="add-term" id="tasting-details" style="margin-top:10px">
-        <summary>Show all &amp; log a tasting</summary>
-        <div class="tasting-log">${allTastingsHtml}</div>
-        <form id="tasting-form" class="ledger-form" style="margin-top:12px">
-          <div class="field-row">
-            <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
-            <label class="field"><span>Location</span><input name="location" placeholder="Home, lounge, backyard…" /></label>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn-primary" id="tasting-submit-btn">Log tasting</button>
-            <button type="button" id="tasting-cancel-edit" class="link-btn" hidden>Cancel edit</button>
-            <span class="form-status" data-status-for="tasting"></span>
-          </div>
-        </form>
-      </details>
+      <form id="tasting-form" class="ledger-form" style="margin-top:10px">
+        <div class="field-row">
+          <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
+          <label class="field"><span>Location</span><input name="location" placeholder="Home, lounge, backyard…" /></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary" id="tasting-submit-btn">Log tasting</button>
+          <button type="button" id="tasting-cancel-edit" class="link-btn" hidden>Cancel edit</button>
+          <span class="form-status" data-status-for="tasting"></span>
+        </div>
+      </form>
+      ${olderTastings.length ? `
+        <details class="add-term" id="tasting-details" style="margin-top:12px">
+          <summary>Show ${olderTastings.length} earlier tasting${olderTastings.length === 1 ? "" : "s"}</summary>
+          <div class="tasting-log">${olderTastings.map(tastingLineHtml).join("")}</div>
+        </details>` : ""}
     </div>
 
     <div class="md-section md-danger-zone">
@@ -399,6 +414,7 @@ function renderCigarModal(c) {
   `;
 
   wireModalForms(c.id);
+  enableDatalistReopen(document.getElementById("profile-form"));
 }
 
 function openLightbox(src) {
@@ -462,7 +478,6 @@ function wireModalForms(cigarId) {
       }
       purchaseSubmitBtn.textContent = "Update purchase";
       purchaseCancelBtn.hidden = false;
-      purchaseForm.closest("details").open = true;
     } else {
       editingPurchaseId = null;
     }
@@ -534,7 +549,6 @@ function wireModalForms(cigarId) {
       }
       submitBtn.textContent = "Update tasting";
       cancelEditBtn.hidden = false;
-      document.getElementById("tasting-details").open = true;
     } else {
       editingTastingId = null;
     }
@@ -607,13 +621,46 @@ function wireModalForms(cigarId) {
   });
 }
 
+// index.html'de olan datalist'li input'lar (filler/binder/wrapper/origin), bir
+// değer zaten girilmişken tıklanınca bazı tarayıcılarda öneri listesini
+// otomatik açmıyor — odaklanınca değeri boşaltıp geri koyarak tarayıcının
+// filtre durumunu sıfırlıyoruz, bu öneri listesinin tekrar tam açılmasını sağlıyor.
+function enableDatalistReopen(root) {
+  root.querySelectorAll("input[list]").forEach((input) => {
+    input.addEventListener("focus", () => {
+      const val = input.value;
+      input.value = "";
+      input.value = val;
+    });
+  });
+}
+
 // --- New cigar form ----------------------------------------------------------
 const cigarForm = document.getElementById("cigar-form");
+enableDatalistReopen(cigarForm);
+
 cigarForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const status = document.getElementById("cigar-form-status");
   const data = Object.fromEntries(new FormData(cigarForm));
   Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
+
+  const dupe = cigarsCache.find((c) =>
+    c.brand.toLowerCase() === (data.brand || "").toLowerCase() &&
+    (c.line || "").toLowerCase() === (data.line || "").toLowerCase()
+  );
+  if (dupe) {
+    const label = [dupe.brand, dupe.line].filter(Boolean).join(" ");
+    const goToExisting = confirm(
+      `You already have "${label}" in your inventory. Click OK to open it (you can log a new purchase there instead), or Cancel to add this as a separate new entry anyway.`
+    );
+    if (goToExisting) {
+      switchView("inventory");
+      openCigarModal(dupe.id);
+      return;
+    }
+  }
+
   try {
     const created = await apiFetch("/api/cigars", { method: "POST", body: JSON.stringify(data) });
     status.textContent = "Cigar saved ✓";
