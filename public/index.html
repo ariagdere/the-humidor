@@ -46,6 +46,10 @@
             <span class="dash-label">on hand</span>
           </div>
           <div class="dash-stat">
+            <span class="dash-num" id="stat-bought">–</span>
+            <span class="dash-label">bought</span>
+          </div>
+          <div class="dash-stat">
             <span class="dash-num" id="stat-smoked">–</span>
             <span class="dash-label">smoked</span>
           </div>
@@ -99,7 +103,7 @@
             <input name="line" placeholder="1964 Anniversary" />
           </label>
           <label class="field">
-            <span>Vitola</span>
+            <span>Size</span>
             <input name="vitola" placeholder="Torpedo" />
           </label>
         </div>
@@ -128,27 +132,20 @@
 
         <div class="field-row">
           <label class="field">
-            <span>Filler</span>
-            <input name="filler" list="dl-filler" placeholder="Nicaragua" />
-            <datalist id="dl-filler"></datalist>
-          </label>
-          <label class="field">
-            <span>Binder</span>
-            <input name="binder" list="dl-binder" placeholder="Nicaragua" />
-            <datalist id="dl-binder"></datalist>
-          </label>
-          <label class="field">
             <span>Wrapper</span>
-            <input name="wrapper" list="dl-wrapper" placeholder="Habano" />
-            <datalist id="dl-wrapper"></datalist>
+            <div class="combo" data-category="wrapper">
+              <input name="wrapper" type="text" autocomplete="off" placeholder="Habano" />
+              <div class="combo-options" hidden></div>
+            </div>
+          </label>
+          <label class="field">
+            <span>Origin</span>
+            <div class="combo" data-category="origin">
+              <input name="origin" type="text" autocomplete="off" placeholder="Nicaragua" />
+              <div class="combo-options" hidden></div>
+            </div>
           </label>
         </div>
-
-        <label class="field">
-          <span>Origin</span>
-          <input name="origin" list="dl-origin" placeholder="Nicaragua" />
-          <datalist id="dl-origin"></datalist>
-        </label>
 
         <label class="field">
           <span>Expected flavor profile</span>
@@ -158,6 +155,7 @@
         <label class="field">
           <span>Notes</span>
           <textarea name="notes" rows="2"></textarea>
+
         </label>
 
         <div class="form-actions">
