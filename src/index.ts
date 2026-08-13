@@ -11,6 +11,7 @@ import sensorRouter from "./routes/sensor";
 import statsRouter from "./routes/stats";
 import extractRouter from "./routes/extract";
 import tastingsRouter from "./routes/tastings";
+import purchasesRouter from "./routes/purchases";
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/api/sensor", sensorRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/extract", extractRouter);
 app.use("/api/tastings", tastingsRouter);
+app.use("/api/purchases", purchasesRouter);
 
 // Genel hata yakalayıcı — asyncHandler'dan next(err) ile buraya düşer.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
