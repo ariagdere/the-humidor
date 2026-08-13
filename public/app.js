@@ -307,6 +307,10 @@ cigarForm.addEventListener("submit", async (e) => {
     status.textContent = "Künye kaydedildi ✓";
     status.className = "form-status ok";
     cigarForm.reset();
+    document.getElementById("photo-preview").hidden = true;
+    document.getElementById("extract-url").value = "";
+    document.getElementById("extract-status").textContent = "";
+    document.getElementById("extract-notes").hidden = true;
     await loadEnvanter(); loadStats();
     switchView("envanter");
     openCigarModal(created.id);
@@ -314,6 +318,53 @@ cigarForm.addEventListener("submit", async (e) => {
     status.textContent = err.message;
     status.className = "form-status err";
   }
+});
+
+// --- Link ile AI destekli doldurma ------------------------------------------
+const CIGAR_FIELDS = ["brand", "line", "vitola", "length_mm", "ring_gauge", "filler", "binder", "wrapper", "origin", "strength", "flavor_profile"];
+
+document.getElementById("extract-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("extract-btn");
+  const url = document.getElementById("extract-url").value.trim();
+  const status = document.getElementById("extract-status");
+  const notes = document.getElementById("extract-notes");
+  if (!url) return;
+
+  btn.disabled = true;
+  btn.textContent = "Okunuyor…";
+  status.textContent = "Sayfa okunuyor, eksik alanlar web'de aranıyor — 20-30 saniye sürebilir…";
+  status.className = "form-status";
+  notes.hidden = true;
+
+  try {
+    const data = await apiFetch("/api/extract", { method: "POST", body: JSON.stringify({ url }) });
+    for (const key of CIGAR_FIELDS) {
+      const el = cigarForm.querySelector(`[name="${key}"]`);
+      if (el && data[key] !== null && data[key] !== undefined && data[key] !== "") el.value = data[key];
+    }
+    if (data.photo_url) {
+      document.getElementById("cigar-photo-url").value = data.photo_url;
+      document.getElementById("photo-preview-img").src = data.photo_url;
+      document.getElementById("photo-preview").hidden = false;
+    }
+    status.textContent = "Dolduruldu ✓ — kaydetmeden önce gözden geçir";
+    status.className = "form-status ok";
+    if (data.confidence_notes) {
+      notes.textContent = data.confidence_notes;
+      notes.hidden = false;
+    }
+  } catch (err) {
+    status.textContent = err.message;
+    status.className = "form-status err";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Doldur";
+  }
+});
+
+document.getElementById("photo-remove").addEventListener("click", () => {
+  document.getElementById("cigar-photo-url").value = "";
+  document.getElementById("photo-preview").hidden = true;
 });
 
 // --- Glossary ------------------------------------------------------------
@@ -378,6 +429,7 @@ async function loadHumidors() {
   grid.innerHTML = `<p class="loading">Yükleniyor…</p>`;
 
   const humidors = await apiFetch("/api/humidors");
+  renderDashboardSensors(humidors);
   grid.innerHTML = "";
 
   if (humidors.length === 0) {
@@ -403,6 +455,26 @@ async function loadHumidors() {
     `;
     grid.appendChild(card);
   }
+}
+
+// Dashboard'daki skor kartı sırasına, sağa yaslı olarak humidor özetini basar.
+// Hiç humidor yoksa hiçbir şey render etmiyoruz — satır sadece 3 sayıyla kalır.
+function renderDashboardSensors(humidors) {
+  const container = document.getElementById("dash-sensors");
+  if (!humidors || humidors.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = humidors.map((h) => {
+    const hasReading = h.latest_reading_time != null;
+    return `
+      <div class="dash-sensor">
+        <span class="dash-sensor-name">${esc(h.name)}</span>
+        ${hasReading
+          ? `<span class="dash-sensor-reading">${Number(h.latest_temperature_c)}° · %${Number(h.latest_humidity_pct)}</span>`
+          : `<span class="dash-sensor-waiting">veri bekleniyor</span>`}
+      </div>`;
+  }).join("");
 }
 
 const humidorForm = document.getElementById("humidor-form");
