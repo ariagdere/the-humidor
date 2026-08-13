@@ -122,6 +122,32 @@ button { font-family: var(--font-body); cursor: pointer; }
 /* ==========================================================================
    Inventory — list rows (photo, name, counts, avg score)
    ========================================================================== */
+.inventory-toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-bottom: 18px;
+}
+.inventory-toolbar input[type="search"] {
+  flex: 1 1 180px; min-width: 140px;
+  font-family: var(--font-body); font-size: 13px;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
+  background: #fff; color: var(--ink);
+}
+.inventory-toolbar select {
+  font-family: var(--font-body); font-size: 13px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: #fff; color: var(--ink); flex-shrink: 0;
+}
+.inventory-toolbar input[type="search"]:focus,
+.inventory-toolbar select:focus {
+  outline: none; border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(184, 147, 90, 0.22);
+}
+.inv-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0;
+}
+.inv-toggle input { margin: 0; }
+
 .cigar-list { display: flex; flex-direction: column; }
 .cigar-row {
   display: flex; align-items: center; gap: 16px;
@@ -211,7 +237,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 .field span { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
 .field span em { color: var(--brass); font-style: normal; }
 .field input, .field select, .field textarea {
-  font-family: var(--font-body); font-size: 15px;
+  font-family: var(--font-body); font-size: 12px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -416,6 +442,8 @@ button { font-family: var(--font-body); cursor: pointer; }
   .cigar-row { gap: 12px; }
   .cigar-row-nums { gap: 12px; }
   .cigar-row-sub { max-width: 140px; }
+  .inventory-toolbar input[type="search"] { flex-basis: 100%; }
+  .inventory-toolbar select { flex: 1 1 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
