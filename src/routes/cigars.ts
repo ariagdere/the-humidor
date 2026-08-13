@@ -24,35 +24,31 @@ router.get(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const cigarResult = await pool.query(
-      `SELECT c.*, s.total_bought, s.total_smoked, s.quantity_remaining
+    // Önceki sürüm 2 ayrı round-trip yapıyordu (cigar+stock, sonra paralel
+    // purchases+tastings). Railway'e her round-trip gerçek network gecikmesi
+    // ekliyor — json_agg ile üçünü TEK sorguda, tek round-trip'te çekiyoruz.
+    const result = await pool.query(
+      `SELECT c.*, s.total_bought, s.total_smoked, s.quantity_remaining,
+        COALESCE(
+          (SELECT json_agg(p.* ORDER BY p.purchase_date DESC NULLS LAST, p.id DESC)
+           FROM purchases p WHERE p.cigar_id = c.id),
+          '[]'
+        ) AS purchases,
+        COALESCE(
+          (SELECT json_agg(t.* ORDER BY t.tasting_date DESC, t.id DESC)
+           FROM tastings t WHERE t.cigar_id = c.id),
+          '[]'
+        ) AS tastings
        FROM cigars c
        JOIN cigars_with_stock s ON s.id = c.id
        WHERE c.id = $1`,
       [id]
     );
-    if (cigarResult.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: "Puro bulunamadı" });
     }
 
-    // Modal açılış hızı için: purchases ve tastings birbirinden bağımsız,
-    // sırayla değil paralel çekiyoruz.
-    const [purchasesResult, tastingsResult] = await Promise.all([
-      pool.query(
-        `SELECT * FROM purchases WHERE cigar_id = $1 ORDER BY purchase_date DESC NULLS LAST, id DESC`,
-        [id]
-      ),
-      pool.query(
-        `SELECT * FROM tastings WHERE cigar_id = $1 ORDER BY tasting_date DESC, id DESC`,
-        [id]
-      ),
-    ]);
-
-    res.json({
-      ...cigarResult.rows[0],
-      purchases: purchasesResult.rows,
-      tastings: tastingsResult.rows,
-    });
+    res.json(result.rows[0]);
   })
 );
 
