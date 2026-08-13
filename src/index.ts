@@ -9,6 +9,7 @@ import glossaryRouter from "./routes/glossary";
 import humidorsRouter from "./routes/humidors";
 import sensorRouter from "./routes/sensor";
 import statsRouter from "./routes/stats";
+import extractRouter from "./routes/extract";
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/glossary", glossaryRouter);
 app.use("/api/humidors", humidorsRouter);
 app.use("/api/sensor", sensorRouter);
 app.use("/api/stats", statsRouter);
+app.use("/api/extract", extractRouter);
 
 // Genel hata yakalayıcı — asyncHandler'dan next(err) ile buraya düşer.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
