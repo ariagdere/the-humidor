@@ -4,13 +4,12 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
-// GET /api/cigars — künye listesi + kalan adet + ortalama puan (liste görünümü için)
+// GET /api/cigars — künye listesi + kalan adet + puan (liste görünümü için)
 router.get(
   "/",
   asyncHandler(async (_req, res) => {
     const result = await pool.query(`
-      SELECT c.*, s.total_bought, s.total_smoked, s.quantity_remaining,
-        (SELECT ROUND(AVG(t.overall_score)) FROM tastings t WHERE t.cigar_id = c.id AND t.overall_score IS NOT NULL) AS avg_score
+      SELECT c.*, s.total_bought, s.total_smoked, s.quantity_remaining
       FROM cigars c
       JOIN cigars_with_stock s ON s.id = c.id
       ORDER BY c.brand, c.line NULLS LAST, c.vitola
@@ -117,6 +116,13 @@ const EDITABLE_CIGAR_FIELDS = [
   "flavor_profile",
   "photo_url",
   "notes",
+  "draw_score",
+  "burn_score",
+  "construction_score",
+  "finish_score",
+  "overall_score",
+  "strength_experienced",
+  "scoring_notes",
 ];
 
 router.put(
@@ -206,27 +212,14 @@ router.get(
   })
 );
 
-// POST /api/cigars/:id/tastings — yeni tadım kaydı = envanterden 1 adet düşer
-// Puanlama alanlarının hepsi opsiyonel: sadece tarih girip "içtim, notu sonra eklerim" mümkün.
+// POST /api/cigars/:id/tastings — yeni tadım kaydı = envanterden 1 adet düşer.
+// Kasıtlı olarak sade: sadece tarih + mekan. Puanlama artık tadım başına değil,
+// puronun kendisinde tek bir kayıt (bkz. PUT /api/cigars/:id).
 router.post(
   "/:id/tastings",
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const {
-      tasting_date,
-      location,
-      draw_score,
-      burn_score,
-      ash_score,
-      construction_score,
-      strength_experienced,
-      flavor_notes,
-      finish_score,
-      overall_score,
-      duration_minutes,
-      pairing,
-      notes,
-    } = req.body;
+    const { tasting_date, location } = req.body;
 
     const cigarExists = await pool.query(`SELECT id FROM cigars WHERE id = $1`, [id]);
     if (cigarExists.rows.length === 0) {
@@ -234,27 +227,10 @@ router.post(
     }
 
     const result = await pool.query(
-      `INSERT INTO tastings
-        (cigar_id, tasting_date, location, draw_score, burn_score, ash_score, construction_score,
-         strength_experienced, flavor_notes, finish_score, overall_score, duration_minutes, pairing, notes)
-       VALUES ($1, COALESCE($2, CURRENT_DATE), $3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      `INSERT INTO tastings (cigar_id, tasting_date, location)
+       VALUES ($1, COALESCE($2, CURRENT_DATE), $3)
        RETURNING *`,
-      [
-        id,
-        tasting_date ?? null,
-        location ?? null,
-        draw_score ?? null,
-        burn_score ?? null,
-        ash_score ?? null,
-        construction_score ?? null,
-        strength_experienced ?? null,
-        flavor_notes ?? null,
-        finish_score ?? null,
-        overall_score ?? null,
-        duration_minutes ?? null,
-        pairing ?? null,
-        notes ?? null,
-      ]
+      [id, tasting_date ?? null, location ?? null]
     );
     res.status(201).json(result.rows[0]);
   })
