@@ -12,6 +12,7 @@ import statsRouter from "./routes/stats";
 import extractRouter from "./routes/extract";
 import tastingsRouter from "./routes/tastings";
 import purchasesRouter from "./routes/purchases";
+import photosRouter from "./photosRoute";
 
 const app = express();
 
@@ -40,6 +41,10 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
+
+// Fotoğraflar — kasıtlı olarak requireApiKey'den ÖNCE: <img src="..."> özel
+// header gönderemez, bu yüzden bu rota auth'suz. Bkz. src/photosRoute.ts.
+app.use("/photos", photosRouter);
 
 app.use(requireApiKey);
 
