@@ -4,12 +4,13 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
-// GET /api/cigars — künye listesi + kalan adet
+// GET /api/cigars — künye listesi + kalan adet + ortalama puan (liste görünümü için)
 router.get(
   "/",
   asyncHandler(async (_req, res) => {
     const result = await pool.query(`
-      SELECT c.*, s.total_bought, s.total_smoked, s.quantity_remaining
+      SELECT c.*, s.total_bought, s.total_smoked, s.quantity_remaining,
+        (SELECT ROUND(AVG(t.overall_score)) FROM tastings t WHERE t.cigar_id = c.id AND t.overall_score IS NOT NULL) AS avg_score
       FROM cigars c
       JOIN cigars_with_stock s ON s.id = c.id
       ORDER BY c.brand, c.line NULLS LAST, c.vitola
@@ -213,6 +214,7 @@ router.post(
     const { id } = req.params;
     const {
       tasting_date,
+      location,
       draw_score,
       burn_score,
       ash_score,
@@ -233,13 +235,14 @@ router.post(
 
     const result = await pool.query(
       `INSERT INTO tastings
-        (cigar_id, tasting_date, draw_score, burn_score, ash_score, construction_score,
+        (cigar_id, tasting_date, location, draw_score, burn_score, ash_score, construction_score,
          strength_experienced, flavor_notes, finish_score, overall_score, duration_minutes, pairing, notes)
-       VALUES ($1, COALESCE($2, CURRENT_DATE), $3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       VALUES ($1, COALESCE($2, CURRENT_DATE), $3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         id,
         tasting_date ?? null,
+        location ?? null,
         draw_score ?? null,
         burn_score ?? null,
         ash_score ?? null,
