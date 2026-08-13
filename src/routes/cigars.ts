@@ -35,14 +35,18 @@ router.get(
       return res.status(404).json({ error: "Puro bulunamadı" });
     }
 
-    const purchasesResult = await pool.query(
-      `SELECT * FROM purchases WHERE cigar_id = $1 ORDER BY purchase_date DESC NULLS LAST, id DESC`,
-      [id]
-    );
-    const tastingsResult = await pool.query(
-      `SELECT * FROM tastings WHERE cigar_id = $1 ORDER BY tasting_date DESC, id DESC`,
-      [id]
-    );
+    // Modal açılış hızı için: purchases ve tastings birbirinden bağımsız,
+    // sırayla değil paralel çekiyoruz.
+    const [purchasesResult, tastingsResult] = await Promise.all([
+      pool.query(
+        `SELECT * FROM purchases WHERE cigar_id = $1 ORDER BY purchase_date DESC NULLS LAST, id DESC`,
+        [id]
+      ),
+      pool.query(
+        `SELECT * FROM tastings WHERE cigar_id = $1 ORDER BY tasting_date DESC, id DESC`,
+        [id]
+      ),
+    ]);
 
     res.json({
       ...cigarResult.rows[0],
