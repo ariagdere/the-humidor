@@ -55,19 +55,23 @@ router.post(
     // Glossary'deki bilinen terimleri referans olarak veriyoruz ki Claude
     // eşleşen bir terim varsa aynen onu kullansın (tutarlılık için).
     const glossary = await pool.query(`SELECT term, category FROM glossary_entries ORDER BY category, term`);
-    const byCategory: Record<string, string[]> = { wrapper: [], binder: [], filler: [], origin: [] };
+    const byCategory: Record<string, string[]> = { wrapper: [], origin: [] };
     for (const row of glossary.rows) {
-      (byCategory[row.category] ??= []).push(row.term);
+      if (row.category === "wrapper" || row.category === "origin") {
+        (byCategory[row.category] ??= []).push(row.term);
+      }
     }
 
     const prompt = `This link is a cigar product page: ${url}
 
-Use the web_fetch tool to read this page and extract: brand, line, vitola, length_mm (whole number, no decimals), ring_gauge, filler, binder, wrapper, origin, strength, flavor_profile, photo_url.
+Use the web_fetch tool to read this page and extract: brand, line, vitola, length_mm (whole number, no decimals), ring_gauge, wrapper, origin, strength, flavor_profile, photo_url.
+
+brand/line matter a lot for us — we use them to detect duplicates, so be precise and consistent:
+- "brand" is just the manufacturer name (e.g. "Nub", "Padron").
+- "line" is the specific product line WITHOUT repeating the brand name (e.g. "Connecticut", "1964 Anniversary"). If the product's line IS effectively the brand itself with no separate line name, leave line empty rather than duplicating the brand there.
 
 Known glossary terms — if one matches, use that exact term; otherwise write it as it appears on the page:
 - wrapper: ${byCategory.wrapper.join(", ") || "(none yet)"}
-- binder: ${byCategory.binder.join(", ") || "(none yet)"}
-- filler: ${byCategory.filler.join(", ") || "(none yet)"}
 - origin: ${byCategory.origin.join(", ") || "(none yet)"}
 
 For strength, use ONLY one of these five values: mild, mild-medium, medium, medium-full, full.
@@ -79,7 +83,7 @@ Write all content in English regardless of the source page's language — this i
 Keep your reasoning brief: summarize what you found on the page and what you searched for in 2-3 sentences, then go straight to the JSON.
 
 At the END of your reply, with nothing else, give only a JSON object with these fields (use null for anything you couldn't find):
-{"brand": "...", "line": "...", "vitola": "...", "length_mm": null, "ring_gauge": null, "filler": "...", "binder": "...", "wrapper": "...", "origin": "...", "strength": "...", "flavor_profile": "...", "photo_url": "...", "confidence_notes": "a short note on what came from the page vs. what you filled in via search"}`;
+{"brand": "...", "line": "...", "vitola": "...", "length_mm": null, "ring_gauge": null, "wrapper": "...", "origin": "...", "strength": "...", "flavor_profile": "...", "photo_url": "...", "confidence_notes": "a short note on what came from the page vs. what you filled in via search"}`;
 
     const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
