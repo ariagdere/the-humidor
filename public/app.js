@@ -9,6 +9,7 @@ const API_KEY = window.__HUMIDOR_API_KEY__ || "";
 let glossaryCache = [];
 let currentCigarData = null;
 let editingTastingId = null;
+let editingPurchaseId = null;
 
 // --- API helper -------------------------------------------------------------
 async function apiFetch(path, options = {}) {
@@ -57,7 +58,7 @@ function fmtDate(iso) {
 function fmtMoney(v) {
   if (v === null || v === undefined) return null;
   const n = Number(v);
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function todayISO() {
@@ -164,6 +165,7 @@ function closeModal() {
   modal.hidden = true;
   modalBody.innerHTML = "";
   editingTastingId = null;
+  editingPurchaseId = null;
 }
 
 async function openCigarModal(id) {
@@ -171,10 +173,12 @@ async function openCigarModal(id) {
   modalBody.innerHTML = `<p class="modal-loading">Loading…</p>`;
   const c = await apiFetch(`/api/cigars/${id}`);
   editingTastingId = null;
+  editingPurchaseId = null;
   renderCigarModal(c);
 }
 
 const TASTING_FIELDS = ["tasting_date", "location"];
+const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url"];
 const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes"];
 const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"];
 
@@ -195,33 +199,79 @@ function tastingLineHtml(t) {
     </div>`;
 }
 
+function purchaseLineHtml(p) {
+  return `
+    <div class="tasting-line" data-purchase-id="${p.id}">
+      <span class="tasting-line-text">${fmtDate(p.purchase_date)}${p.source ? ` · ${esc(p.source)}` : ""} · ${p.quantity} pcs${p.unit_price ? ` · ${fmtMoney(p.unit_price)}` : ""}</span>
+      <span class="tasting-line-actions">
+        <button type="button" class="purchase-edit-btn" data-id="${p.id}">Edit</button>
+        <button type="button" class="purchase-delete-btn danger" data-id="${p.id}">Delete</button>
+      </span>
+    </div>`;
+}
+
+function glossaryLookup(term, category) {
+  if (!term) return null;
+  const hit = glossaryCache.find((g) => g.category === category && g.term.toLowerCase() === String(term).toLowerCase());
+  return hit ? hit.description : null;
+}
+
+function factLineHtml(label, value, category) {
+  if (!value) return "";
+  const info = category ? glossaryLookup(value, category) : null;
+  const icon = info
+    ? `<span class="fact-info" tabindex="0"><span class="fact-info-icon">ⓘ</span><span class="fact-info-tip">${esc(info)}</span></span>`
+    : "";
+  return `<div><span class="md-fact-label">${label}:</span> ${esc(value)}${icon}</div>`;
+}
+
+const RATING_TAG_FIELDS = [
+  ["draw_score", "Draw", "/5"], ["burn_score", "Burn", "/5"], ["construction_score", "Construction", "/5"],
+  ["finish_score", "Finish", "/5"], ["overall_score", "Overall", "/5"],
+];
+
+function ratingSummaryHtml(c) {
+  const tags = RATING_TAG_FIELDS.filter(([k]) => c[k]).map(([k, label, suffix]) => `${label} ${c[k]}${suffix}`);
+  if (c.strength_experienced) tags.push(cap(c.strength_experienced).replace(/-(\w)/, (_, ch) => "-" + ch.toUpperCase()));
+  return tags.length ? tags.join(" · ") : "Not rated — click to add";
+}
+
 function renderCigarModal(c) {
   const remaining = Number(c.quantity_remaining ?? 0);
   currentCigarData = c;
 
   const title = [c.brand, c.line].filter(Boolean).join(" ");
 
-  const facts = [
-    ["Filler", c.filler], ["Binder", c.binder], ["Wrapper", c.wrapper], ["Origin", c.origin],
-    ["Length", c.length_mm ? `${c.length_mm} mm` : null], ["Ring gauge", c.ring_gauge],
-  ].filter(([, v]) => v);
+  const factRows = [
+    factLineHtml("Filler", c.filler, "filler"),
+    factLineHtml("Binder", c.binder, "binder"),
+    factLineHtml("Wrapper", c.wrapper, "wrapper"),
+    factLineHtml("Origin", c.origin, "origin"),
+    factLineHtml("Length", c.length_mm ? `${c.length_mm} mm` : null, null),
+    factLineHtml("Ring gauge", c.ring_gauge, null),
+  ].filter(Boolean);
 
-  const purchasesHtml = c.purchases.length
-    ? c.purchases.map((p) => `
-        <div class="purchase-row">
-          <div>
-            <div class="pr-source">${esc(p.source || "Unknown source")}</div>
-            <div class="pr-meta">${fmtDate(p.purchase_date)} · ${p.quantity} ct</div>
-          </div>
-          <div class="pr-price">${fmtMoney(p.unit_price) || ""}</div>
-        </div>`).join("")
+  const lastPurchase = c.purchases[0];
+  const lastPurchaseHtml = lastPurchase
+    ? `<div class="purchase-row">
+         <div>
+           <div class="pr-source">${esc(lastPurchase.source || "Unknown source")}</div>
+           <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs</div>
+         </div>
+         <div class="pr-price">${fmtMoney(lastPurchase.unit_price) || ""}</div>
+       </div>`
+    : `<p class="pr-meta">No purchases logged yet.</p>`;
+  const allPurchasesHtml = c.purchases.length
+    ? c.purchases.map(purchaseLineHtml).join("")
     : `<p class="pr-meta">No purchases logged yet.</p>`;
 
-  const tastingLinesHtml = c.tastings.length
+  const lastTasting = c.tastings[0];
+  const lastTastingHtml = lastTasting
+    ? `<div class="tasting-line" style="border-top:none"><span class="tasting-line-text">${fmtDate(lastTasting.tasting_date)}${lastTasting.location ? ` · ${esc(lastTasting.location)}` : ""}</span></div>`
+    : `<p class="pr-meta">No tastings logged yet.</p>`;
+  const allTastingsHtml = c.tastings.length
     ? c.tastings.map(tastingLineHtml).join("")
     : `<p class="pr-meta">No tastings logged yet.</p>`;
-
-  const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score;
 
   modalBody.innerHTML = `
     <div class="md-header">
@@ -236,13 +286,42 @@ function renderCigarModal(c) {
       <span class="md-score-badge${c.overall_score ? "" : " unscored"}">${c.overall_score ? c.overall_score + "/5" : "Not rated"}</span>
     </div>
 
-    ${facts.length ? `<div class="md-facts">${facts.map(([l, v]) => `<div><span class="md-fact-label">${l}:</span> ${esc(v)}</div>`).join("")}</div>` : ""}
+    ${factRows.length ? `<div class="md-facts">${factRows.join("")}</div>` : ""}
     ${c.flavor_profile ? `<p class="md-fact-label" style="margin-top:8px">Expected profile: <span style="color:var(--ink)">${esc(c.flavor_profile)}</span></p>` : ""}
+
+    <details class="add-term" id="profile-details" style="margin-top:14px">
+      <summary>Edit profile</summary>
+      <form id="profile-form" class="ledger-form" style="margin-top:12px">
+        <div class="field-row">
+          <label class="field"><span>Brand <em>*</em></span><input name="brand" required value="${esc(c.brand)}" /></label>
+          <label class="field"><span>Line</span><input name="line" value="${esc(c.line || "")}" /></label>
+          <label class="field"><span>Vitola</span><input name="vitola" value="${esc(c.vitola || "")}" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field field-sm"><span>Length (mm)</span><input name="length_mm" type="number" min="0" value="${c.length_mm ?? ""}" /></label>
+          <label class="field field-sm"><span>Ring gauge</span><input name="ring_gauge" type="number" min="0" value="${c.ring_gauge ?? ""}" /></label>
+          <label class="field field-sm"><span>Strength</span>${strengthSelectHtml("strength", c.strength)}</label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>Filler</span><input name="filler" list="dl-filler" value="${esc(c.filler || "")}" /></label>
+          <label class="field"><span>Binder</span><input name="binder" list="dl-binder" value="${esc(c.binder || "")}" /></label>
+          <label class="field"><span>Wrapper</span><input name="wrapper" list="dl-wrapper" value="${esc(c.wrapper || "")}" /></label>
+        </div>
+        <label class="field"><span>Origin</span><input name="origin" list="dl-origin" value="${esc(c.origin || "")}" /></label>
+        <label class="field"><span>Expected flavor profile</span><textarea name="flavor_profile" rows="2">${esc(c.flavor_profile || "")}</textarea></label>
+        <label class="field"><span>Photo URL</span><input name="photo_url" type="url" value="${esc(c.photo_url || "")}" /></label>
+        <label class="field"><span>Notes</span><textarea name="notes" rows="2">${esc(c.notes || "")}</textarea></label>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Save profile</button>
+          <span class="form-status" data-status-for="profile"></span>
+        </div>
+      </form>
+    </details>
 
     <div class="md-section">
       <h4>Rating</h4>
       <details class="add-term" id="rating-details">
-        <summary>${hasRating ? "Edit rating" : "Rate this cigar"}</summary>
+        <summary>${ratingSummaryHtml(c)}</summary>
         <form id="rating-form" class="ledger-form" style="margin-top:12px">
           <div class="rating-grid">
             <label class="field"><span>Draw (1-5)</span><input name="draw_score" type="number" min="1" max="5" value="${c.draw_score ?? ""}" /></label>
@@ -262,10 +341,14 @@ function renderCigarModal(c) {
     </div>
 
     <div class="md-section">
-      <h4>Purchases</h4>
-      ${purchasesHtml}
-      <details style="margin-top:12px">
-        <summary class="detail-toggle" style="cursor:pointer">+ Add purchase</summary>
+      <div class="tasting-summary-row">
+        <h4>Purchases</h4>
+        <span class="tasting-count">${c.total_bought} bought</span>
+      </div>
+      ${lastPurchaseHtml}
+      <details class="add-term" style="margin-top:10px">
+        <summary>Show all &amp; add</summary>
+        <div class="tasting-log">${allPurchasesHtml}</div>
         <form id="purchase-form" class="ledger-form" style="margin-top:12px">
           <div class="field-row">
             <label class="field"><span>Source</span><input name="source" placeholder="sarayasigara.com" /></label>
@@ -273,12 +356,13 @@ function renderCigarModal(c) {
           </div>
           <div class="field-row">
             <label class="field field-sm"><span>Quantity *</span><input name="quantity" type="number" min="1" required /></label>
-            <label class="field field-sm"><span>Unit price</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
+            <label class="field field-sm"><span>Unit price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
             <label class="field"><span>Box code</span><input name="box_code" /></label>
           </div>
           <label class="field"><span>Reference link</span><input name="reference_url" type="url" placeholder="https://…" /></label>
           <div class="form-actions">
-            <button type="submit" class="btn-primary">Save</button>
+            <button type="submit" class="btn-primary" id="purchase-submit-btn">Save</button>
+            <button type="button" id="purchase-cancel-edit" class="link-btn" hidden>Cancel edit</button>
             <span class="form-status" data-status-for="purchase"></span>
           </div>
         </form>
@@ -290,9 +374,10 @@ function renderCigarModal(c) {
         <h4>Tastings</h4>
         <span class="tasting-count">${c.total_smoked} smoked</span>
       </div>
-      <details class="add-term" id="tasting-details">
-        <summary>Show log &amp; log a tasting</summary>
-        <div class="tasting-log">${tastingLinesHtml}</div>
+      ${lastTastingHtml}
+      <details class="add-term" id="tasting-details" style="margin-top:10px">
+        <summary>Show all &amp; log a tasting</summary>
+        <div class="tasting-log">${allTastingsHtml}</div>
         <form id="tasting-form" class="ledger-form" style="margin-top:12px">
           <div class="field-row">
             <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
@@ -305,6 +390,11 @@ function renderCigarModal(c) {
           </div>
         </form>
       </details>
+    </div>
+
+    <div class="md-section md-danger-zone">
+      <button type="button" id="delete-cigar-btn" class="btn-danger">Delete this cigar</button>
+      <span class="form-status" data-status-for="delete"></span>
     </div>
   `;
 
@@ -322,6 +412,23 @@ function openLightbox(src) {
 function wireModalForms(cigarId) {
   const photoImg = document.getElementById("md-photo-img");
   if (photoImg) photoImg.addEventListener("click", () => openLightbox(photoImg.src));
+
+  const profileForm = document.getElementById("profile-form");
+  profileForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const status = profileForm.querySelector('[data-status-for="profile"]');
+    const data = Object.fromEntries(new FormData(profileForm));
+    Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
+    try {
+      await apiFetch(`/api/cigars/${cigarId}`, { method: "PUT", body: JSON.stringify(data) });
+      status.textContent = "Saved ✓"; status.className = "form-status ok";
+      const fresh = await apiFetch(`/api/cigars/${cigarId}`);
+      renderCigarModal(fresh);
+      loadInventory(); loadStats();
+    } catch (err) {
+      status.textContent = err.message; status.className = "form-status err";
+    }
+  });
 
   const ratingForm = document.getElementById("rating-form");
   ratingForm.addEventListener("submit", async (e) => {
@@ -341,16 +448,42 @@ function wireModalForms(cigarId) {
     }
   });
 
+  // --- Purchases: add/edit/delete ---
   const purchaseForm = document.getElementById("purchase-form");
+  const purchaseCancelBtn = document.getElementById("purchase-cancel-edit");
+  const purchaseSubmitBtn = document.getElementById("purchase-submit-btn");
+
+  if (editingPurchaseId) {
+    const p = currentCigarData.purchases.find((x) => x.id === editingPurchaseId);
+    if (p) {
+      for (const key of PURCHASE_FIELDS) {
+        const el = purchaseForm.querySelector(`[name="${key}"]`);
+        if (el && p[key] !== null && p[key] !== undefined) el.value = p[key];
+      }
+      purchaseSubmitBtn.textContent = "Update purchase";
+      purchaseCancelBtn.hidden = false;
+      purchaseForm.closest("details").open = true;
+    } else {
+      editingPurchaseId = null;
+    }
+  }
+
   purchaseForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const status = purchaseForm.querySelector('[data-status-for="purchase"]');
     const data = Object.fromEntries(new FormData(purchaseForm));
     Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
-    if (!data.quantity) return;
+    if (!editingPurchaseId && !data.quantity) return;
     try {
-      await apiFetch(`/api/cigars/${cigarId}/purchases`, { method: "POST", body: JSON.stringify(data) });
-      status.textContent = "Added ✓"; status.className = "form-status ok";
+      if (editingPurchaseId) {
+        await apiFetch(`/api/purchases/${editingPurchaseId}`, { method: "PUT", body: JSON.stringify(data) });
+        status.textContent = "Updated ✓";
+      } else {
+        await apiFetch(`/api/cigars/${cigarId}/purchases`, { method: "POST", body: JSON.stringify(data) });
+        status.textContent = "Added ✓";
+      }
+      status.className = "form-status ok";
+      editingPurchaseId = null;
       const fresh = await apiFetch(`/api/cigars/${cigarId}`);
       renderCigarModal(fresh);
       loadInventory(); loadStats();
@@ -359,6 +492,35 @@ function wireModalForms(cigarId) {
     }
   });
 
+  purchaseCancelBtn.addEventListener("click", () => {
+    editingPurchaseId = null;
+    purchaseForm.reset();
+    purchaseSubmitBtn.textContent = "Save";
+    purchaseCancelBtn.hidden = true;
+  });
+
+  modalBody.querySelectorAll(".purchase-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      editingPurchaseId = Number(btn.dataset.id);
+      renderCigarModal(currentCigarData);
+    });
+  });
+
+  modalBody.querySelectorAll(".purchase-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this purchase? This cannot be undone.")) return;
+      try {
+        await apiFetch(`/api/purchases/${btn.dataset.id}`, { method: "DELETE" });
+        const fresh = await apiFetch(`/api/cigars/${cigarId}`);
+        renderCigarModal(fresh);
+        loadInventory(); loadStats();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  // --- Tastings: add/edit/delete ---
   const tastingForm = document.getElementById("tasting-form");
   const cancelEditBtn = document.getElementById("tasting-cancel-edit");
   const submitBtn = document.getElementById("tasting-submit-btn");
@@ -428,6 +590,20 @@ function wireModalForms(cigarId) {
         alert(err.message);
       }
     });
+  });
+
+  // --- Delete the whole cigar ---
+  document.getElementById("delete-cigar-btn").addEventListener("click", async () => {
+    const label = [currentCigarData.brand, currentCigarData.line].filter(Boolean).join(" ");
+    if (!confirm(`Delete "${label}" completely? This also removes all its purchases and tastings. This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/cigars/${cigarId}`, { method: "DELETE" });
+      closeModal();
+      loadInventory(); loadStats();
+    } catch (err) {
+      const status = document.querySelector('[data-status-for="delete"]');
+      if (status) { status.textContent = err.message; status.className = "form-status err"; }
+    }
   });
 }
 
