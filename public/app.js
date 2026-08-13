@@ -144,15 +144,16 @@ async function loadInventory() {
     row.innerHTML = `
       ${photoHtml}
       <div class="cigar-row-main">
-        <div class="cigar-row-title">${esc(title)}${c.strength ? ` ${strengthBadgeHtml(c.strength)}` : ""}</div>
+        <div class="cigar-row-title">${esc(title)}</div>
         <div class="cigar-row-sub">${esc(c.vitola) || "&nbsp;"}</div>
       </div>
       <div class="cigar-row-nums">
+        ${c.strength ? strengthBadgeHtml(c.strength) : `<span class="strength-badge strength-none">—</span>`}
         <div class="cigar-row-num"><span class="cigar-row-num-val">${c.total_bought}</span><span class="cigar-row-num-lbl">bought</span></div>
         <div class="cigar-row-num"><span class="cigar-row-num-val">${c.total_smoked}</span><span class="cigar-row-num-lbl">smoked</span></div>
         <div class="cigar-row-num"><span class="cigar-row-num-val">${remaining}</span><span class="cigar-row-num-lbl">left</span></div>
+        <span class="cigar-row-score${c.overall_score ? "" : " unscored"}">${c.overall_score ? c.overall_score + "/5" : "—"}</span>
       </div>
-      <span class="cigar-row-score${c.overall_score ? "" : " unscored"}">${c.overall_score ? c.overall_score + "/5" : "—"}</span>
     `;
     list.appendChild(row);
   }
@@ -186,10 +187,42 @@ const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "b
 const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes"];
 const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"];
 
+// Sertlik seçimini de wrapper/origin ile GÖRSEL OLARAK AYNI özel dropdown ile
+// gösteriyoruz (native <select> farklı görünüyordu, bkz. ekran görüntüsü).
+// Görünen metin (ör. "Mild-Medium") ile gerçek değer (ör. "mild-medium") farklı
+// olduğu için ayrı bir gizli input'ta gerçek değeri tutuyoruz.
 function strengthSelectHtml(name, current) {
-  const label = (s) => s.split("-").map(cap).join("-");
-  const opts = STRENGTH_OPTIONS.map((s) => `<option value="${s}"${current === s ? " selected" : ""}>${label(s)}</option>`).join("");
-  return `<select name="${name}"><option value="">—</option>${opts}</select>`;
+  const currentLabel = current ? strengthLabel(current) : "";
+  return `
+    <div class="combo">
+      <input type="text" class="combo-display" readonly value="${esc(currentLabel)}" placeholder="—" />
+      <input type="hidden" name="${name}" value="${current || ""}" />
+      <div class="combo-options" hidden></div>
+    </div>`;
+}
+
+function wireFixedCombo(container) {
+  if (!container) return;
+  const display = container.querySelector(".combo-display");
+  const hidden = container.querySelector('input[type="hidden"]');
+  const dropdown = container.querySelector(".combo-options");
+
+  function renderOptions() {
+    const opts = [{ value: "", label: "—" }, ...STRENGTH_OPTIONS.map((s) => ({ value: s, label: strengthLabel(s) }))];
+    dropdown.innerHTML = opts.map((o) => `<div class="combo-option" data-value="${o.value}">${esc(o.label)}</div>`).join("");
+    dropdown.hidden = false;
+  }
+
+  display.addEventListener("focus", renderOptions);
+  display.addEventListener("blur", () => setTimeout(() => { dropdown.hidden = true; }, 150));
+
+  dropdown.addEventListener("mousedown", (e) => {
+    const opt = e.target.closest(".combo-option");
+    if (!opt) return;
+    display.value = opt.textContent;
+    hidden.value = opt.dataset.value;
+    dropdown.hidden = true;
+  });
 }
 
 function tastingLineHtml(t) {
@@ -269,7 +302,8 @@ function renderCigarModal(c) {
 
   const lastPurchase = c.purchases[0];
   const lastPurchaseHtml = lastPurchase
-    ? `<div class="purchase-row" data-purchase-id="${lastPurchase.id}">
+    ? `<p class="mini-label">Last purchased</p>
+       <div class="purchase-row" data-purchase-id="${lastPurchase.id}">
          <div>
            <div class="pr-source">${esc(lastPurchase.source || "Unknown source")}</div>
            <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs</div>
@@ -286,7 +320,7 @@ function renderCigarModal(c) {
 
   const lastTasting = c.tastings[0];
   const lastTastingHtml = lastTasting
-    ? tastingLineHtml(lastTasting)
+    ? `<p class="mini-label">Last tasting</p>${tastingLineHtml(lastTasting)}`
     : `<p class="pr-meta">No tastings logged yet.</p>`;
 
   modalBody.innerHTML = `
@@ -380,13 +414,11 @@ function renderCigarModal(c) {
       </div>
       ${lastPurchaseHtml}
       <form id="purchase-form" class="ledger-form" style="margin-top:10px">
-        <div class="field-row">
+        <div class="field-row purchase-row-compact">
           <label class="field"><span>Source</span><input name="source" placeholder="Where did you purchase?" /></label>
           <label class="field field-sm"><span>Date</span><input name="purchase_date" type="date" value="${todayISO()}" /></label>
-        </div>
-        <div class="field-row">
-          <label class="field field-sm"><span>Quantity *</span><input name="quantity" type="number" min="1" required /></label>
-          <label class="field field-sm"><span>Unit price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
+          <label class="field field-sm"><span>Qty *</span><input name="quantity" type="number" min="1" required /></label>
+          <label class="field field-sm"><span>Price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="purchase-submit-btn">Save</button>
@@ -394,9 +426,9 @@ function renderCigarModal(c) {
           <span class="form-status" data-status-for="purchase"></span>
         </div>
       </form>
-      ${c.purchases.length > 1 ? `
+      ${c.purchases.length > 0 ? `
         <details class="add-term" style="margin-top:12px">
-          <summary>Show all ${c.purchases.length} purchases</summary>
+          <summary>Show all ${c.purchases.length} purchase${c.purchases.length === 1 ? "" : "s"}</summary>
           <div class="tasting-log">${c.purchases.map(purchaseLineHtml).join("")}</div>
         </details>` : ""}
     </div>
@@ -418,9 +450,9 @@ function renderCigarModal(c) {
           <span class="form-status" data-status-for="tasting"></span>
         </div>
       </form>
-      ${c.tastings.length > 1 ? `
+      ${c.tastings.length > 0 ? `
         <details class="add-term" id="tasting-details" style="margin-top:12px">
-          <summary>Show all ${c.tastings.length} tastings</summary>
+          <summary>Show all ${c.tastings.length} tasting${c.tastings.length === 1 ? "" : "s"}</summary>
           <div class="tasting-log">${c.tastings.map(tastingLineHtml).join("")}</div>
         </details>` : ""}
     </div>
@@ -429,6 +461,8 @@ function renderCigarModal(c) {
   wireModalForms(c.id);
   wireCombo(document.querySelector('#profile-form .combo[data-category="wrapper"]'), "wrapper");
   wireCombo(document.querySelector('#profile-form .combo[data-category="origin"]'), "origin");
+  wireFixedCombo(document.querySelector('#profile-form .combo:not([data-category])'));
+  wireFixedCombo(document.querySelector('#rating-form .combo:not([data-category])'));
 }
 
 function openLightbox(src) {
@@ -668,6 +702,32 @@ function wireCombo(container, category) {
   });
 }
 
+// Native confirm() yerine tema ile uyumlu bir kart. resolve(true) = "mevcut
+// olanı aç", resolve(false) = "yine de yeni ayrı kayıt olarak ekle".
+function showDupeConfirm(message) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("dupe-modal");
+    document.getElementById("dupe-message").textContent =
+      message + " Open the existing one to log a purchase there, or add this as a separate new entry.";
+    modal.hidden = false;
+
+    const openBtn = document.getElementById("dupe-open-existing");
+    const anywayBtn = document.getElementById("dupe-add-anyway");
+
+    function cleanup(result) {
+      modal.hidden = true;
+      openBtn.removeEventListener("click", onOpen);
+      anywayBtn.removeEventListener("click", onAnyway);
+      resolve(result);
+    }
+    function onOpen() { cleanup(true); }
+    function onAnyway() { cleanup(false); }
+
+    openBtn.addEventListener("click", onOpen);
+    anywayBtn.addEventListener("click", onAnyway);
+  });
+}
+
 // --- New cigar form ----------------------------------------------------------
 const cigarForm = document.getElementById("cigar-form");
 
@@ -687,6 +747,7 @@ function looksLikeDuplicate(newBrand, newLine, existingBrand, existingLine) {
 }
 wireCombo(document.querySelector('#cigar-form .combo[data-category="wrapper"]'), "wrapper");
 wireCombo(document.querySelector('#cigar-form .combo[data-category="origin"]'), "origin");
+wireFixedCombo(document.querySelector('#cigar-form .combo:not([data-category])'));
 
 cigarForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -697,9 +758,7 @@ cigarForm.addEventListener("submit", async (e) => {
   const dupe = cigarsCache.find((c) => looksLikeDuplicate(data.brand, data.line, c.brand, c.line));
   if (dupe) {
     const label = [dupe.brand, dupe.line].filter(Boolean).join(" ");
-    const goToExisting = confirm(
-      `You already have "${label}" in your inventory. Click OK to open it (you can log a new purchase there instead), or Cancel to add this as a separate new entry anyway.`
-    );
+    const goToExisting = await showDupeConfirm(`You already have "${label}" in your inventory.`);
     if (goToExisting) {
       switchView("inventory");
       openCigarModal(dupe.id);
