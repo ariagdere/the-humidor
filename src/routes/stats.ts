@@ -14,7 +14,8 @@ router.get(
       SELECT
         (SELECT COUNT(*) FROM cigars) AS total_cigar_types,
         (SELECT COALESCE(SUM(quantity_remaining), 0) FROM cigars_with_stock) AS total_in_stock,
-        (SELECT COUNT(*) FROM tastings) AS total_smoked
+        (SELECT COUNT(*) FROM tastings) AS total_smoked,
+        (SELECT COALESCE(SUM(quantity), 0) FROM purchases) AS total_bought
     `);
 
     // Puanlama artık puronun kendisinde tek bir alan (0-5), tadımlardan bağımsız.
@@ -49,6 +50,7 @@ router.get(
 
     res.json({
       total_cigar_types: Number(totals.rows[0].total_cigar_types),
+      total_bought: Number(totals.rows[0].total_bought),
       total_in_stock: Number(totals.rows[0].total_in_stock),
       total_smoked: Number(totals.rows[0].total_smoked),
       top_rated: topRated.rows,
