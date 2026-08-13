@@ -81,7 +81,7 @@ async function loadStats() {
   document.getElementById("stat-smoked").textContent = stats.total_smoked;
 
   const lists = [
-    { title: "Top rated", items: stats.top_rated, metric: (i) => `${i.avg_score}/100` },
+    { title: "Top rated", items: stats.top_rated, metric: (i) => `${i.overall_score}/5` },
     { title: "Most smoked", items: stats.most_smoked, metric: (i) => `${i.tasting_count} tastings` },
     { title: "Most repurchased", items: stats.most_repurchased, metric: (i) => `${i.purchase_count} purchases` },
   ];
@@ -124,6 +124,7 @@ async function loadInventory() {
   count.textContent = `${cigars.length} cigar${cigars.length === 1 ? "" : "s"}`;
 
   for (const c of cigars) {
+    const remaining = Number(c.quantity_remaining ?? 0);
     const row = document.createElement("button");
     row.type = "button";
     row.className = "cigar-row";
@@ -133,19 +134,20 @@ async function loadInventory() {
       ? `<img class="cigar-row-photo" src="${esc(c.photo_url)}" alt="" />`
       : `<div class="cigar-row-photo-placeholder">${esc((c.brand || "?").charAt(0))}</div>`;
 
-    const subParts = [c.line, c.vitola, c.wrapper].filter(Boolean).join(" · ");
+    const title = [c.brand, c.line].filter(Boolean).join(" ");
 
     row.innerHTML = `
       ${photoHtml}
       <div class="cigar-row-main">
-        <div class="cigar-row-title">${esc(c.brand)}</div>
-        <div class="cigar-row-sub">${esc(subParts) || "&nbsp;"}</div>
+        <div class="cigar-row-title">${esc(title)}</div>
+        <div class="cigar-row-sub">${esc(c.vitola) || "&nbsp;"}</div>
       </div>
       <div class="cigar-row-nums">
         <div class="cigar-row-num"><span class="cigar-row-num-val">${c.total_bought}</span><span class="cigar-row-num-lbl">bought</span></div>
         <div class="cigar-row-num"><span class="cigar-row-num-val">${c.total_smoked}</span><span class="cigar-row-num-lbl">smoked</span></div>
+        <div class="cigar-row-num"><span class="cigar-row-num-val">${remaining}</span><span class="cigar-row-num-lbl">left</span></div>
       </div>
-      ${c.avg_score ? `<span class="cigar-row-score">${c.avg_score}/100</span>` : ""}
+      <span class="cigar-row-score${c.overall_score ? "" : " unscored"}">${c.overall_score ? c.overall_score + "/5" : "—"}</span>
     `;
     list.appendChild(row);
   }
@@ -172,43 +174,32 @@ async function openCigarModal(id) {
   renderCigarModal(c);
 }
 
-const TASTING_FIELDS = [
-  "tasting_date", "location", "draw_score", "burn_score", "ash_score", "construction_score",
-  "strength_experienced", "flavor_notes", "finish_score", "overall_score",
-  "duration_minutes", "pairing", "notes",
-];
+const TASTING_FIELDS = ["tasting_date", "location"];
+const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes"];
+const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"];
 
-function tastingEntryHtml(t) {
-  const tags = [];
-  if (t.location) tags.push(t.location);
-  if (t.draw_score) tags.push(`Draw ${t.draw_score}/5`);
-  if (t.burn_score) tags.push(`Burn ${t.burn_score}/5`);
-  if (t.ash_score) tags.push(`Ash ${t.ash_score}/5`);
-  if (t.construction_score) tags.push(`Construction ${t.construction_score}/5`);
-  if (t.finish_score) tags.push(`Finish ${t.finish_score}/5`);
-  if (t.strength_experienced) tags.push(cap(t.strength_experienced));
-  if (t.duration_minutes) tags.push(`${t.duration_minutes} min`);
-  if (t.pairing) tags.push(`with ${t.pairing}`);
+function strengthSelectHtml(name, current) {
+  const label = (s) => s.split("-").map(cap).join("-");
+  const opts = STRENGTH_OPTIONS.map((s) => `<option value="${s}"${current === s ? " selected" : ""}>${label(s)}</option>`).join("");
+  return `<select name="${name}"><option value="">—</option>${opts}</select>`;
+}
 
+function tastingLineHtml(t) {
   return `
-    <div class="tasting-entry" data-tasting-id="${t.id}">
-      <div class="tasting-entry-head">
-        <span class="tasting-entry-date">${fmtDate(t.tasting_date)}</span>
-        ${t.overall_score ? `<span class="tasting-entry-score">${t.overall_score}/100</span>` : ""}
-      </div>
-      ${tags.length ? `<div class="tasting-entry-tags">${tags.map((tag) => `<span class="tasting-entry-tag">${esc(tag)}</span>`).join("")}</div>` : ""}
-      ${t.flavor_notes ? `<p class="tasting-entry-notes">${esc(t.flavor_notes)}</p>` : ""}
-      ${t.notes ? `<p class="tasting-entry-notes">${esc(t.notes)}</p>` : ""}
-      <div class="tasting-entry-actions">
+    <div class="tasting-line" data-tasting-id="${t.id}">
+      <span class="tasting-line-text">${fmtDate(t.tasting_date)}${t.location ? ` · ${esc(t.location)}` : ""}</span>
+      <span class="tasting-line-actions">
         <button type="button" class="tasting-edit-btn" data-id="${t.id}">Edit</button>
         <button type="button" class="tasting-delete-btn danger" data-id="${t.id}">Delete</button>
-      </div>
+      </span>
     </div>`;
 }
 
 function renderCigarModal(c) {
   const remaining = Number(c.quantity_remaining ?? 0);
   currentCigarData = c;
+
+  const title = [c.brand, c.line].filter(Boolean).join(" ");
 
   const facts = [
     ["Filler", c.filler], ["Binder", c.binder], ["Wrapper", c.wrapper], ["Origin", c.origin],
@@ -226,18 +217,49 @@ function renderCigarModal(c) {
         </div>`).join("")
     : `<p class="pr-meta">No purchases logged yet.</p>`;
 
-  const tastingsHtml = c.tastings.length
-    ? c.tastings.map(tastingEntryHtml).join("")
+  const tastingLinesHtml = c.tastings.length
+    ? c.tastings.map(tastingLineHtml).join("")
     : `<p class="pr-meta">No tastings logged yet.</p>`;
 
+  const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score;
+
   modalBody.innerHTML = `
-    ${c.photo_url ? `<img class="md-photo" src="${esc(c.photo_url)}" alt="" />` : ""}
-    <h3 class="md-title">${esc(c.brand)}</h3>
-    <p class="md-sub">${esc([c.line, c.vitola].filter(Boolean).join(" · ")) || "&nbsp;"}</p>
-    <p class="md-stock">${remaining} left &nbsp;·&nbsp; ${c.total_bought} bought, ${c.total_smoked} smoked</p>
+    <div class="md-header">
+      <div class="md-header-text">
+        <h3 class="md-title">${esc(title)}</h3>
+        <p class="md-sub">${esc(c.vitola) || "&nbsp;"}</p>
+      </div>
+      ${c.photo_url ? `<img class="md-photo" src="${esc(c.photo_url)}" alt="" id="md-photo-img" />` : ""}
+    </div>
+    <div class="md-stock-row">
+      <p class="md-stock">${remaining} left &nbsp;·&nbsp; ${c.total_bought} bought, ${c.total_smoked} smoked</p>
+      <span class="md-score-badge${c.overall_score ? "" : " unscored"}">${c.overall_score ? c.overall_score + "/5" : "Not rated"}</span>
+    </div>
 
     ${facts.length ? `<div class="md-facts">${facts.map(([l, v]) => `<div><span class="md-fact-label">${l}:</span> ${esc(v)}</div>`).join("")}</div>` : ""}
     ${c.flavor_profile ? `<p class="md-fact-label" style="margin-top:8px">Expected profile: <span style="color:var(--ink)">${esc(c.flavor_profile)}</span></p>` : ""}
+
+    <div class="md-section">
+      <h4>Rating</h4>
+      <details class="add-term" id="rating-details">
+        <summary>${hasRating ? "Edit rating" : "Rate this cigar"}</summary>
+        <form id="rating-form" class="ledger-form" style="margin-top:12px">
+          <div class="rating-grid">
+            <label class="field"><span>Draw (1-5)</span><input name="draw_score" type="number" min="1" max="5" value="${c.draw_score ?? ""}" /></label>
+            <label class="field"><span>Burn (1-5)</span><input name="burn_score" type="number" min="1" max="5" value="${c.burn_score ?? ""}" /></label>
+            <label class="field"><span>Construction (1-5)</span><input name="construction_score" type="number" min="1" max="5" value="${c.construction_score ?? ""}" /></label>
+            <label class="field"><span>Finish (1-5)</span><input name="finish_score" type="number" min="1" max="5" value="${c.finish_score ?? ""}" /></label>
+            <label class="field"><span>Overall (1-5)</span><input name="overall_score" type="number" min="1" max="5" value="${c.overall_score ?? ""}" /></label>
+            <label class="field"><span>Strength felt</span>${strengthSelectHtml("strength_experienced", c.strength_experienced)}</label>
+          </div>
+          <label class="field"><span>Notes</span><textarea name="scoring_notes" rows="2">${esc(c.scoring_notes || "")}</textarea></label>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Save rating</button>
+            <span class="form-status" data-status-for="rating"></span>
+          </div>
+        </form>
+      </details>
+    </div>
 
     <div class="md-section">
       <h4>Purchases</h4>
@@ -264,32 +286,20 @@ function renderCigarModal(c) {
     </div>
 
     <div class="md-section">
-      <h4>Tastings</h4>
-      ${tastingsHtml}
+      <div class="tasting-summary-row">
+        <h4>Tastings</h4>
+        <span class="tasting-count">${c.total_smoked} smoked</span>
+      </div>
       <details class="add-term" id="tasting-details">
-        <summary>+ Add tasting</summary>
-        <form id="tasting-form" class="ledger-form">
+        <summary>Show log &amp; log a tasting</summary>
+        <div class="tasting-log">${tastingLinesHtml}</div>
+        <form id="tasting-form" class="ledger-form" style="margin-top:12px">
           <div class="field-row">
             <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
             <label class="field"><span>Location</span><input name="location" placeholder="Home, lounge, backyard…" /></label>
           </div>
-          <div class="score-grid">
-            <label class="field"><span>Draw (1-5)</span><input name="draw_score" type="number" min="1" max="5" /></label>
-            <label class="field"><span>Burn (1-5)</span><input name="burn_score" type="number" min="1" max="5" /></label>
-            <label class="field"><span>Ash (1-5)</span><input name="ash_score" type="number" min="1" max="5" /></label>
-            <label class="field"><span>Construction (1-5)</span><input name="construction_score" type="number" min="1" max="5" /></label>
-            <label class="field"><span>Finish (1-5)</span><input name="finish_score" type="number" min="1" max="5" /></label>
-            <label class="field"><span>Overall score (1-100)</span><input name="overall_score" type="number" min="1" max="100" /></label>
-            <label class="field"><span>Strength experienced</span>
-              <select name="strength_experienced"><option value="">—</option><option value="mild">Mild</option><option value="medium">Medium</option><option value="full">Full</option></select>
-            </label>
-            <label class="field"><span>Duration (min)</span><input name="duration_minutes" type="number" min="0" /></label>
-          </div>
-          <label class="field"><span>Flavor notes</span><textarea name="flavor_notes" rows="2"></textarea></label>
-          <label class="field"><span>Paired with</span><input name="pairing" placeholder="Coffee, whiskey…" /></label>
-          <label class="field"><span>Notes</span><textarea name="notes" rows="2"></textarea></label>
           <div class="form-actions">
-            <button type="submit" class="btn-primary" id="tasting-submit-btn">Save tasting</button>
+            <button type="submit" class="btn-primary" id="tasting-submit-btn">Log tasting</button>
             <button type="button" id="tasting-cancel-edit" class="link-btn" hidden>Cancel edit</button>
             <span class="form-status" data-status-for="tasting"></span>
           </div>
@@ -301,7 +311,36 @@ function renderCigarModal(c) {
   wireModalForms(c.id);
 }
 
+function openLightbox(src) {
+  const overlay = document.createElement("div");
+  overlay.className = "lightbox";
+  overlay.innerHTML = `<img src="${esc(src)}" alt="" />`;
+  overlay.addEventListener("click", () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+
 function wireModalForms(cigarId) {
+  const photoImg = document.getElementById("md-photo-img");
+  if (photoImg) photoImg.addEventListener("click", () => openLightbox(photoImg.src));
+
+  const ratingForm = document.getElementById("rating-form");
+  ratingForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const status = ratingForm.querySelector('[data-status-for="rating"]');
+    const data = Object.fromEntries(new FormData(ratingForm));
+    Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
+    for (const key of RATING_FIELDS) if (!(key in data)) data[key] = null;
+    try {
+      await apiFetch(`/api/cigars/${cigarId}`, { method: "PUT", body: JSON.stringify(data) });
+      status.textContent = "Saved ✓"; status.className = "form-status ok";
+      const fresh = await apiFetch(`/api/cigars/${cigarId}`);
+      renderCigarModal(fresh);
+      loadInventory(); loadStats();
+    } catch (err) {
+      status.textContent = err.message; status.className = "form-status err";
+    }
+  });
+
   const purchaseForm = document.getElementById("purchase-form");
   purchaseForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -366,7 +405,7 @@ function wireModalForms(cigarId) {
     editingTastingId = null;
     tastingForm.reset();
     tastingForm.querySelector('[name="tasting_date"]').value = todayISO();
-    submitBtn.textContent = "Save tasting";
+    submitBtn.textContent = "Log tasting";
     cancelEditBtn.hidden = true;
   });
 
