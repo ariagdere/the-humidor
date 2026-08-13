@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,38 +16,38 @@
 
   <header class="topbar">
     <div class="wordmark">
-      <img src="/icon.svg" alt="" class="wordmark-icon" />
+      <img src="/favicon.svg" alt="" class="wordmark-icon" />
       <div class="wordmark-text">
         <span class="wordmark-the">the</span>
         <span class="wordmark-main">Humidor</span>
       </div>
     </div>
     <nav class="tabs" id="tabs">
-      <button class="tab" data-view="envanter">Envanter</button>
-      <button class="tab" data-view="ekle">Yeni Ekle</button>
+      <button class="tab" data-view="inventory">Inventory</button>
+      <button class="tab" data-view="add">Add New</button>
       <button class="tab" data-view="glossary">Glossary</button>
-      <button class="tab" data-view="sensorler">Sensörler</button>
+      <button class="tab" data-view="sensors">Sensors</button>
     </nav>
   </header>
 
   <main>
 
-    <!-- ENVANTER -->
-    <section id="view-envanter" class="view">
+    <!-- INVENTORY -->
+    <section id="view-inventory" class="view">
 
       <div class="dashboard" id="dashboard">
         <div class="dash-totals">
           <div class="dash-stat">
             <span class="dash-num" id="stat-types">–</span>
-            <span class="dash-label">künye çeşidi</span>
+            <span class="dash-label">cigar types</span>
           </div>
           <div class="dash-stat">
             <span class="dash-num" id="stat-stock">–</span>
-            <span class="dash-label">elde kalan</span>
+            <span class="dash-label">on hand</span>
           </div>
           <div class="dash-stat">
             <span class="dash-num" id="stat-smoked">–</span>
-            <span class="dash-label">içilen</span>
+            <span class="dash-label">smoked</span>
           </div>
           <div class="dash-sensors" id="dash-sensors"></div>
         </div>
@@ -55,28 +55,28 @@
       </div>
 
       <div class="view-head">
-        <h2>Envanter</h2>
-        <p class="view-sub" id="envanter-count"></p>
+        <h2>Inventory</h2>
+        <p class="view-sub" id="inventory-count"></p>
       </div>
-      <div id="envanter-grid" class="card-grid"></div>
-      <p id="envanter-empty" class="empty-state" hidden>
-        Henüz puro eklemedin. <button class="link-btn" data-view="ekle">İlk puronu ekle →</button>
+      <div id="inventory-list" class="cigar-list"></div>
+      <p id="inventory-empty" class="empty-state" hidden>
+        No cigars yet. <button class="link-btn" data-view="add">Add your first one →</button>
       </p>
     </section>
 
-    <!-- YENİ EKLE -->
-    <section id="view-ekle" class="view" hidden>
+    <!-- ADD NEW -->
+    <section id="view-add" class="view" hidden>
       <div class="view-head">
-        <h2>Yeni Puro</h2>
-        <p class="view-sub">Künyeyi doldur, sonra istersen hemen bir alım da ekleriz.</p>
+        <h2>New Cigar</h2>
+        <p class="view-sub">Fill in the profile, then optionally log a purchase right away.</p>
       </div>
 
       <div class="extract-box">
         <label class="field">
-          <span>Link ile doldur (opsiyonel)</span>
+          <span>Fill from a link (optional)</span>
           <div class="extract-row">
             <input id="extract-url" type="url" placeholder="https://…" />
-            <button type="button" id="extract-btn" class="btn-secondary">Doldur</button>
+            <button type="button" id="extract-btn" class="btn-secondary">Fill</button>
           </div>
         </label>
         <p id="extract-status" class="form-status"></p>
@@ -87,15 +87,15 @@
         <input type="hidden" name="photo_url" id="cigar-photo-url" />
         <div id="photo-preview" class="photo-preview" hidden>
           <img id="photo-preview-img" alt="" />
-          <button type="button" id="photo-remove" class="link-btn">Fotoğrafı kaldır</button>
+          <button type="button" id="photo-remove" class="link-btn">Remove photo</button>
         </div>
         <div class="field-row">
           <label class="field">
-            <span>Marka <em>*</em></span>
+            <span>Brand <em>*</em></span>
             <input name="brand" required placeholder="Padrón" />
           </label>
           <label class="field">
-            <span>Seri</span>
+            <span>Line</span>
             <input name="line" placeholder="1964 Anniversary" />
           </label>
           <label class="field">
@@ -106,7 +106,7 @@
 
         <div class="field-row">
           <label class="field field-sm">
-            <span>Uzunluk (mm)</span>
+            <span>Length (mm)</span>
             <input name="length_mm" type="number" min="0" />
           </label>
           <label class="field field-sm">
@@ -114,7 +114,7 @@
             <input name="ring_gauge" type="number" min="0" />
           </label>
           <label class="field field-sm">
-            <span>Sertlik</span>
+            <span>Strength</span>
             <select name="strength">
               <option value="">—</option>
               <option value="mild">Mild</option>
@@ -127,12 +127,12 @@
         <div class="field-row">
           <label class="field">
             <span>Filler</span>
-            <input name="filler" list="dl-filler" placeholder="Nikaragua" />
+            <input name="filler" list="dl-filler" placeholder="Nicaragua" />
             <datalist id="dl-filler"></datalist>
           </label>
           <label class="field">
             <span>Binder</span>
-            <input name="binder" list="dl-binder" placeholder="Nikaragua" />
+            <input name="binder" list="dl-binder" placeholder="Nicaragua" />
             <datalist id="dl-binder"></datalist>
           </label>
           <label class="field">
@@ -143,23 +143,23 @@
         </div>
 
         <label class="field">
-          <span>Orijin</span>
-          <input name="origin" list="dl-origin" placeholder="Nikaragua" />
+          <span>Origin</span>
+          <input name="origin" list="dl-origin" placeholder="Nicaragua" />
           <datalist id="dl-origin"></datalist>
         </label>
 
         <label class="field">
-          <span>Beklenen tat profili</span>
-          <textarea name="flavor_profile" rows="2" placeholder="Kakao, kahve, baharat…"></textarea>
+          <span>Expected flavor profile</span>
+          <textarea name="flavor_profile" rows="2" placeholder="Cocoa, coffee, spice…"></textarea>
         </label>
 
         <label class="field">
-          <span>Notlar</span>
+          <span>Notes</span>
           <textarea name="notes" rows="2"></textarea>
         </label>
 
         <div class="form-actions">
-          <button type="submit" class="btn-primary">Künyeyi kaydet</button>
+          <button type="submit" class="btn-primary">Save cigar</button>
           <span id="cigar-form-status" class="form-status"></span>
         </div>
       </form>
@@ -169,20 +169,20 @@
     <section id="view-glossary" class="view" hidden>
       <div class="view-head">
         <h2>Glossary</h2>
-        <p class="view-sub">Wrapper, binder, filler ve orijin için genel referans.</p>
+        <p class="view-sub">General reference for wrapper, binder, filler and origin.</p>
       </div>
       <div id="glossary-groups"></div>
 
       <details class="add-term">
-        <summary>+ Yeni terim ekle</summary>
+        <summary>+ Add new term</summary>
         <form id="glossary-form" class="ledger-form">
           <div class="field-row">
             <label class="field">
-              <span>Terim</span>
+              <span>Term</span>
               <input name="term" required placeholder="Broadleaf" />
             </label>
             <label class="field field-sm">
-              <span>Kategori</span>
+              <span>Category</span>
               <select name="category" required>
                 <option value="wrapper">Wrapper</option>
                 <option value="binder">Binder</option>
@@ -192,47 +192,47 @@
             </label>
           </div>
           <label class="field">
-            <span>Açıklama</span>
+            <span>Description</span>
             <textarea name="description" rows="2" required></textarea>
           </label>
           <div class="form-actions">
-            <button type="submit" class="btn-primary">Ekle</button>
+            <button type="submit" class="btn-primary">Add</button>
             <span id="glossary-form-status" class="form-status"></span>
           </div>
         </form>
       </details>
     </section>
 
-    <!-- SENSÖRLER -->
-    <section id="view-sensorler" class="view" hidden>
+    <!-- SENSORS -->
+    <section id="view-sensors" class="view" hidden>
       <div class="view-head">
-        <h2>Sensörler</h2>
-        <p class="view-sub">Humidor sıcaklık/nem takibi.</p>
+        <h2>Sensors</h2>
+        <p class="view-sub">Humidor temperature/humidity tracking.</p>
       </div>
       <div id="humidor-grid" class="card-grid"></div>
       <p id="humidor-empty" class="empty-state" hidden>
-        Henüz humidor tanımlanmadı. BLE termometre kurulunca burada canlı sıcaklık/nem göreceksin — ama humidoru şimdiden isimlendirebilirsin.
+        No humidors defined yet. Once a BLE thermometer is set up you'll see live readings here — but you can name your humidor ahead of time.
       </p>
 
       <details class="add-term">
-        <summary>+ Humidor ekle</summary>
+        <summary>+ Add humidor</summary>
         <form id="humidor-form" class="ledger-form">
           <div class="field-row">
             <label class="field">
-              <span>İsim <em>*</em></span>
-              <input name="name" required placeholder="Ofis humidoru" />
+              <span>Name <em>*</em></span>
+              <input name="name" required placeholder="Office humidor" />
             </label>
             <label class="field">
-              <span>Konum notu</span>
-              <input name="location_note" placeholder="Çalışma odası" />
+              <span>Location note</span>
+              <input name="location_note" placeholder="Study" />
             </label>
           </div>
           <label class="field">
-            <span>MAC adresi</span>
-            <input name="mac_address" placeholder="Cihaz kurulunca doldurulur, şimdilik boş bırakabilirsin" />
+            <span>MAC address</span>
+            <input name="mac_address" placeholder="Filled in once the device is set up — leave blank for now" />
           </label>
           <div class="form-actions">
-            <button type="submit" class="btn-primary">Ekle</button>
+            <button type="submit" class="btn-primary">Add</button>
             <span id="humidor-form-status" class="form-status"></span>
           </div>
         </form>
@@ -242,14 +242,15 @@
   </main>
 </div>
 
-<!-- PURO DETAY MODALI -->
+<!-- CIGAR DETAIL MODAL -->
 <div id="modal" class="modal-backdrop" hidden>
   <div class="modal-card">
-    <button id="modal-close" class="modal-close" aria-label="Kapat">×</button>
+    <button id="modal-close" class="modal-close" aria-label="Close">×</button>
     <div id="modal-body"></div>
   </div>
 </div>
 
+<script>window.__HUMIDOR_API_KEY__ = "__API_KEY__";</script>
 <script src="/app.js"></script>
 </body>
 </html>
