@@ -1,35 +1,37 @@
--- Glossary başlangıç verisi. Bu liste geniş tutulmak üzere tasarlandı;
--- yeni terim eklemek için aynı formatta INSERT ... ON CONFLICT satırı yeter.
--- Kategori: wrapper | binder | filler | origin
+-- Glossary seed, English. This REPLACES the earlier Turkish-language seed
+-- (the DELETE makes it safe to run again on an already-seeded database too).
+-- Category: wrapper | binder | filler | origin
+
+DELETE FROM glossary_entries;
 
 INSERT INTO glossary_entries (term, category, description) VALUES
--- Wrapper (dış yaprak) tipleri
-('Connecticut Shade', 'wrapper', 'Gölgede yetiştirilen açık renkli, ince dokulu yaprak. Kremsi, hafif tatlımsı ve nispeten nötr notalar verir; genelde hafif-orta gövdeli purolarda kullanılır.'),
-('Connecticut Broadleaf', 'wrapper', 'Koyu kahverengiye yakın, kalın ve damarlı bir yaprak. Toprağımsı, tatlı, kakao ve kahve ağırlıklı notalar verir; genelde orta-tam gövdeli purolarda görülür.'),
-('Habano', 'wrapper', 'Küba tohumundan Ekvador veya Nikaragua''da yetiştirilen yaprak. Baharatlı, topraklı ve belirgin bir karaktere sahiptir; orta-tam gövde.'),
-('Maduro', 'wrapper', 'Tek bir yaprak türü değil, uzatılmış fermantasyon/işlem süreciyle koyulaştırılmış yaprakları tanımlayan genel bir terimdir. Tatlı, kakao ve kahve ağırlıklı notalar öne çıkar.'),
-('Corojo', 'wrapper', 'Honduras kökenli, baharatlı ve topraklı notalarıyla bilinen bir yaprak türü. Genelde orta-tam gövdeli purolarda kullanılır.'),
-('Cameroon', 'wrapper', 'Afrika kökenli, ince dokulu ve nispeten nadir bulunan bir yaprak. Hafif tatlı, baharatlı ve hafif kuruyemiş notaları verir.'),
-('Ecuador Sumatra', 'wrapper', 'Ekvador''da yetiştirilen, ince ve düzgün dokulu bir yaprak. Dengeli, hafif tatlı ve hafif baharatlı notalar sunar.'),
-('San Andrés', 'wrapper', 'Meksika''nın San Andrés bölgesinden, koyu renkli ve kalın bir yaprak. Toprağımsı, baharatlı ve kakao notalarıyla bilinir; sıklıkla maduro tarzı purolarda kullanılır.'),
-('Candela', 'wrapper', 'Hızlı kurutma ile yeşil rengi korunan bir yaprak (double claro olarak da bilinir). Çim, otsu ve hafif tatlı notalar verir; nadir görülen bir stildir.'),
-('Criollo', 'wrapper', 'Küba kökenli eski bir tütün varyetesi. Baharatlı ve kompleks bir profile sahiptir, genelde orta gövde.'),
+-- Wrapper types
+('Connecticut Shade', 'wrapper', 'A light-colored, thin-textured leaf grown under shade cloth. Gives creamy, mildly sweet, fairly neutral notes; typically found on mild-to-medium bodied cigars.'),
+('Connecticut Broadleaf', 'wrapper', 'A dark, thick, veiny leaf. Delivers earthy, sweet, cocoa- and coffee-forward notes; usually seen on medium-to-full bodied cigars.'),
+('Habano', 'wrapper', 'Cuban-seed leaf grown in Ecuador or Nicaragua. Spicy, earthy, and distinctive in character; medium-to-full body.'),
+('Maduro', 'wrapper', 'Not a single leaf varietal, but a general term for leaves darkened through extended fermentation/processing. Sweet, cocoa- and coffee-forward notes stand out.'),
+('Corojo', 'wrapper', 'A Honduran-origin leaf known for spicy, earthy notes. Usually found on medium-to-full bodied cigars.'),
+('Cameroon', 'wrapper', 'An African-origin, thin-textured, relatively rare leaf. Gives mildly sweet, spicy, and lightly nutty notes.'),
+('Ecuador Sumatra', 'wrapper', 'A thin, smooth-textured leaf grown in Ecuador. Offers a balanced, mildly sweet, mildly spicy profile.'),
+('San Andrés', 'wrapper', 'A dark, thick leaf from Mexico''s San Andrés region. Known for earthy, spicy, and cocoa notes; often used on maduro-style cigars.'),
+('Candela', 'wrapper', 'A leaf that keeps its green color through fast-drying (also known as double claro). Grassy, herbal, mildly sweet notes; a rare style.'),
+('Criollo', 'wrapper', 'An old Cuban-origin tobacco varietal. Spicy and complex in profile, typically medium body.'),
 
--- Binder (bağlayıcı yaprak) tipleri
-('Nikaragua Binder', 'binder', 'Genelde güçlü ve baharatlı bir profil katan, volkanik topraklarda yetişen bağlayıcı yaprak.'),
-('Dominik Binder', 'binder', 'Yumuşak ve dengeli bir profil katan, yanma performansını destekleyen bağlayıcı yaprak.'),
-('Habano Binder', 'binder', 'Baharatlı ve topraklı notaları güçlendiren, orta-tam gövdeli karışımlarda tercih edilen bağlayıcı yaprak.'),
+-- Binder types
+('Nicaraguan Binder', 'binder', 'A binder leaf grown in volcanic soil that typically contributes a strong, spicy profile.'),
+('Dominican Binder', 'binder', 'A binder leaf that contributes a soft, balanced profile and supports a good burn.'),
+('Habano Binder', 'binder', 'A binder leaf that reinforces spicy, earthy notes; preferred in medium-to-full bodied blends.'),
 
--- Filler (dolgu) tipleri
-('Ligero', 'filler', 'Bitkinin üst yapraklarından elde edilir; en güçlü ve en yoğun aromalı dolgu yaprağıdır, gövdeye ve güce katkısı büyüktür.'),
-('Seco', 'filler', 'Bitkinin orta yapraklarından elde edilir; hafif-orta yoğunlukta, aroma dengesini sağlayan dolgu yaprağıdır.'),
-('Volado', 'filler', 'Bitkinin alt yapraklarından elde edilir; aroması hafiftir ama yanma performansını iyileştirdiği için karışımlarda önemlidir.'),
+-- Filler types
+('Ligero', 'filler', 'Harvested from the top leaves of the plant; the strongest, most intensely flavored filler leaf, contributing significantly to body and strength.'),
+('Seco', 'filler', 'Harvested from the middle leaves of the plant; mild-to-medium intensity, balances the overall aroma.'),
+('Volado', 'filler', 'Harvested from the lower leaves of the plant; light in aroma but important for improving burn quality in a blend.'),
 
--- Origin (menşei) genel özellikleri
-('Küba', 'origin', 'Klasik puro kökeni. Genelde toprağımsı, baharatlı ve kompleks profillere sahip, köklü bir tütün geleneği ile bilinir.'),
-('Dominik Cumhuriyeti', 'origin', 'Dünyanın en büyük puro üreticisi. Genelde yumuşak-orta gövdeli, kremsi ve dengeli profillerle bilinir.'),
-('Nikaragua', 'origin', 'Volkanik topraklarda yetişen tütünleriyle bilinir; genelde daha güçlü, baharatlı ve topraklı profiller verir.'),
-('Honduras', 'origin', 'Genelde güçlü, topraklı ve baharatlı profillere sahip tütün üretir; tam gövdeli purolarda sık tercih edilir.'),
-('Meksika', 'origin', 'Özellikle San Andrés bölgesiyle bilinir; koyu, topraklı ve baharatlı wrapper/filler üretimiyle öne çıkar.'),
-('Ekvador', 'origin', 'Bulutlu iklimi sayesinde ince dokulu, düzgün wrapper yaprakları (Habano, Sumatra, Connecticut tipi) yetiştirmesiyle tanınır.')
+-- Origin general characteristics
+('Cuba', 'origin', 'The classic cigar origin. Known for a long tobacco tradition and generally earthy, spicy, complex profiles.'),
+('Dominican Republic', 'origin', 'The world''s largest cigar producer. Generally known for mild-to-medium bodied, creamy, balanced profiles.'),
+('Nicaragua', 'origin', 'Known for tobacco grown in volcanic soil; generally gives stronger, spicier, earthier profiles.'),
+('Honduras', 'origin', 'Generally produces strong, earthy, spicy tobacco; often favored for full-bodied cigars.'),
+('Mexico', 'origin', 'Known especially for the San Andrés region; stands out for dark, earthy, spicy wrapper/filler production.'),
+('Ecuador', 'origin', 'Known for growing thin-textured, smooth wrapper leaves (Habano, Sumatra, Connecticut-type) thanks to its cloudy climate.')
 ON CONFLICT (term, category) DO NOTHING;
