@@ -4,21 +4,7 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
-const EDITABLE_TASTING_FIELDS = [
-  "tasting_date",
-  "location",
-  "draw_score",
-  "burn_score",
-  "ash_score",
-  "construction_score",
-  "strength_experienced",
-  "flavor_notes",
-  "finish_score",
-  "overall_score",
-  "duration_minutes",
-  "pairing",
-  "notes",
-];
+const EDITABLE_TASTING_FIELDS = ["tasting_date", "location"];
 
 // PUT /api/tastings/:id — kısmi güncelleme (sadece gönderilen alanlar değişir)
 router.put(
