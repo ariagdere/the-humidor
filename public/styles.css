@@ -249,7 +249,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 .g-term { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin-bottom: 3px; }
 .g-desc { color: var(--ink-soft); font-size: 14px; line-height: 1.5; margin: 0; }
 
-.add-term { margin-top: 12px; }
+.add-term { margin-top: 12px; overflow: hidden; }
 .add-term summary {
   cursor: pointer; font-weight: 700; color: var(--cedar); font-size: 14px;
   padding: 10px 0;
@@ -307,7 +307,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 
 .rating-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px; }
 
-.tasting-summary-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.tasting-summary-row { display: flex; justify-content: space-between; align-items: baseline; }
 .tasting-summary-row h4 { margin-bottom: 0; }
 .tasting-count { font-family: var(--font-display); font-weight: 600; font-size: 14px; color: var(--cedar); }
 
@@ -349,9 +349,8 @@ button { font-family: var(--font-body); cursor: pointer; }
 
 .purchase-row {
   display: flex; justify-content: space-between; gap: 10px;
-  font-size: 13.5px; padding: 8px 0; border-top: 1px solid var(--line);
+  font-size: 13.5px; padding: 4px 0 8px;
 }
-.purchase-row:first-of-type { border-top: none; }
 .pr-source { font-weight: 600; }
 .pr-meta { color: var(--ink-soft); }
 .pr-price { font-weight: 700; color: var(--cedar); white-space: nowrap; }
