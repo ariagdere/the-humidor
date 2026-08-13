@@ -353,9 +353,11 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .btn-icon-danger:hover { border-color: var(--error); background: rgba(162, 62, 46, 0.08); }
 
-/* Özel combobox (Wrapper/Origin) — native datalist'in "değer doluyken öneri
-   göstermeme" tuhaflığından kaçınmak için elle kurulmuş açılır liste. */
+/* Özel combobox (Wrapper/Origin/Strength) — native datalist'in "değer
+   doluyken öneri göstermeme" tuhaflığından ve native <select>'in farklı
+   görünmesinden kaçınmak için hepsi elle kurulmuş, aynı stildeki açılır liste. */
 .combo { position: relative; }
+.combo-display { cursor: pointer; }
 .combo-options {
   position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
   background: #fff; border: 1px solid var(--line); border-radius: 7px;
@@ -369,13 +371,23 @@ button { font-family: var(--font-body); cursor: pointer; }
 .strength-badge {
   display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.03em; padding: 3px 9px; border-radius: 20px; color: #fff;
-  white-space: nowrap;
+  white-space: nowrap; flex-shrink: 0;
 }
 .strength-mild { background: #C9AD7F; }
 .strength-mild-medium { background: #B08A5A; }
 .strength-medium { background: #96703F; }
 .strength-medium-full { background: #7A4A2E; }
 .strength-full { background: #4A2E1A; }
+.strength-none { background: none; border: 1px solid var(--line); color: var(--ink-soft); }
+
+.mini-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--brass); margin: 0 0 4px; }
+
+.purchase-row-compact .field { min-width: 0; }
+.purchase-row-compact .field-sm { max-width: 110px; }
+
+.dupe-card { max-width: 420px; text-align: center; padding: 28px 32px; }
+.dupe-card #dupe-message { font-size: 15px; line-height: 1.5; margin: 4px 0 22px; }
+.dupe-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
 .purchase-row {
   display: flex; justify-content: space-between; gap: 10px;
