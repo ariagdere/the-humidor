@@ -4,6 +4,15 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
+// MAC adresini tutarlı bir biçime (küçük harf, baş/son boşluksuz) getirir.
+// Farklı araçlar (BLE tarayıcılar, ESPHome, Xiaomi araçları) MAC'i farklı
+// büyük/küçüklükte gösterebiliyor -- kaydederken normalize edip sensor.ts'teki
+// karşılaştırmayı da büyük/küçük harften bağımsız yaparak bu sınıf hatayı tamamen ortadan kaldırıyoruz.
+function normalizeMac(mac: unknown): string | null {
+  if (typeof mac !== "string" || mac.trim() === "") return null;
+  return mac.trim().toLowerCase();
+}
+
 // GET /api/humidors — her humidor için son okumayı da ekleyerek listele
 router.get(
   "/",
@@ -38,7 +47,7 @@ router.post(
 
     const result = await pool.query(
       `INSERT INTO humidors (name, mac_address, location_note) VALUES ($1, $2, $3) RETURNING *`,
-      [name, mac_address ?? null, location_note ?? null]
+      [name, normalizeMac(mac_address), location_note ?? null]
     );
     res.status(201).json(result.rows[0]);
   })
@@ -56,7 +65,7 @@ router.put(
            location_note = COALESCE($4, location_note)
        WHERE id = $1
        RETURNING *`,
-      [req.params.id, name ?? null, mac_address ?? null, location_note ?? null]
+      [req.params.id, name ?? null, normalizeMac(mac_address), location_note ?? null]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Humidor bulunamadı" });
