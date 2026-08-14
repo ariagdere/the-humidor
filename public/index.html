@@ -26,7 +26,7 @@
       <button class="tab" data-view="inventory">Inventory</button>
       <button class="tab" data-view="add">Add New</button>
       <button class="tab" data-view="glossary">Glossary</button>
-      <button class="tab" data-view="sensors">Sensors</button>
+      <button class="tab" data-view="sensors">Humidors</button>
     </nav>
   </header>
 
@@ -235,7 +235,7 @@
     <!-- SENSORS -->
     <section id="view-sensors" class="view" hidden>
       <div class="view-head">
-        <h2>Sensors</h2>
+        <h2>Humidors</h2>
         <p class="view-sub">Humidor temperature/humidity tracking.</p>
       </div>
       <div id="humidor-grid" class="card-grid"></div>
@@ -296,6 +296,7 @@
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
 </button>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
 <script>window.__HUMIDOR_API_KEY__ = "__API_KEY__";</script>
 <script src="/app.js"></script>
 </body>
