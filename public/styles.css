@@ -209,6 +209,8 @@ button { font-family: var(--font-body); cursor: pointer; }
 .humidor-reading-lbl { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
 .humidor-waiting { font-size: 13px; color: var(--brass); font-style: italic; }
 .humidor-mac { font-size: 11px; color: var(--ink-soft); margin-top: 10px; font-family: monospace; }
+.humidor-card-actions { display: flex; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.humidor-card-actions .danger { color: var(--error); }
 
 /* ==========================================================================
    Formlar (ledger-form)
