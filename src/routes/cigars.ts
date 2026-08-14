@@ -21,7 +21,7 @@ router.get(
       SELECT c.id, c.brand, c.line, c.vitola, c.length_mm, c.ring_gauge, c.filler, c.binder,
              c.wrapper, c.origin, c.strength, c.flavor_profile, c.photo_url, c.notes,
              c.created_at, c.updated_at, c.draw_score, c.burn_score, c.construction_score,
-             c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes,
+             c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes, c.duration_minutes,
              (c.photo_data IS NOT NULL) AS has_photo,
              s.total_bought, s.total_smoked, s.quantity_remaining
       FROM cigars c
@@ -45,7 +45,7 @@ router.get(
       `SELECT c.id, c.brand, c.line, c.vitola, c.length_mm, c.ring_gauge, c.filler, c.binder,
               c.wrapper, c.origin, c.strength, c.flavor_profile, c.photo_url, c.notes,
               c.created_at, c.updated_at, c.draw_score, c.burn_score, c.construction_score,
-              c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes,
+              c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes, c.duration_minutes,
               (c.photo_data IS NOT NULL) AS has_photo,
               s.total_bought, s.total_smoked, s.quantity_remaining,
         COALESCE(
@@ -150,6 +150,7 @@ const EDITABLE_CIGAR_FIELDS = [
   "overall_score",
   "strength_experienced",
   "scoring_notes",
+  "duration_minutes",
 ];
 
 router.put(
