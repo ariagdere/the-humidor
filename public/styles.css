@@ -482,6 +482,37 @@ button { font-family: var(--font-body); cursor: pointer; }
   .back-to-top { right: 16px; bottom: 16px; width: 42px; height: 42px; }
 }
 
+/* --- Favorite star ------------------------------------------------------ */
+.favorite-star {
+  display: inline-block; color: var(--line); cursor: pointer; font-size: 16px;
+  line-height: 1; padding: 2px; user-select: none; transition: color 0.15s, transform 0.1s;
+}
+.favorite-star:hover { transform: scale(1.15); }
+.favorite-star.is-favorite { color: var(--brass); }
+.favorite-star-lg { font-size: 18px; vertical-align: middle; margin-left: 6px; }
+
+/* --- Purchase/tasting line humidor tag ----------------------------------- */
+.tasting-line-humidor { color: var(--ink-soft); font-style: italic; }
+
+/* --- Humidor detail modal: chart + cigar list ---------------------------- */
+.chart-modal-title { font-size: 20px; margin-bottom: 4px; }
+.chart-modal-sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 10px; }
+.chart-wrap { position: relative; height: 280px; margin-top: 6px; }
+
+.humidor-cigar-list { max-height: 220px; overflow-y: auto; }
+.humidor-cigar-line {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid var(--line);
+  padding: 9px 2px; font-family: var(--font-body); cursor: pointer;
+}
+.humidor-cigar-line:last-child { border-bottom: none; }
+.humidor-cigar-line:hover .humidor-cigar-line-title { color: var(--cedar); }
+.humidor-cigar-line-title { font-size: 14px; color: var(--ink); }
+.humidor-cigar-line-sub { color: var(--ink-soft); font-size: 12.5px; }
+.humidor-cigar-line-qty {
+  font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--leaf); flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
