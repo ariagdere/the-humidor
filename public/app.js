@@ -1232,6 +1232,7 @@ async function loadHumidors() {
     card.innerHTML = `
       <div class="humidor-name">${esc(h.name)}</div>
       ${h.location_note ? `<div class="humidor-note">${esc(h.location_note)}</div>` : ""}
+      <div class="humidor-cigar-count">${h.cigar_count} cigar${Number(h.cigar_count) === 1 ? "" : "s"} stored</div>
       ${hasReading
         ? `<div class="humidor-readings">
              <div><span class="humidor-reading-num">${Number(h.latest_temperature_c)}°</span><div class="humidor-reading-lbl">temp</div></div>
@@ -1297,13 +1298,16 @@ function cancelEditHumidor() {
 // --- Sensor history chart -----------------------------------------------
 let humidorChartInstance = null;
 
-function humidorCigarLineHtml(hc) {
+function humidorCigarLineHtml(hc, humidorId) {
   const title = [hc.brand, hc.line].filter(Boolean).join(" ");
   return `
-    <button type="button" class="humidor-cigar-line" data-cigar-id="${hc.id}">
-      <span class="humidor-cigar-line-title">${esc(title)}${hc.vitola ? `<span class="humidor-cigar-line-sub"> · ${esc(hc.vitola)}</span>` : ""}</span>
+    <div class="humidor-cigar-line" data-cigar-id="${hc.id}" data-humidor-id="${humidorId}">
+      <button type="button" class="humidor-cigar-line-name">
+        <span class="humidor-cigar-line-title">${esc(title)}${hc.vitola ? `<span class="humidor-cigar-line-sub"> · ${esc(hc.vitola)}</span>` : ""}</span>
+      </button>
       <span class="humidor-cigar-line-qty">${hc.quantity_here}</span>
-    </button>`;
+      <button type="button" class="humidor-cigar-remove-btn" title="Remove from this humidor" aria-label="Remove from this humidor">×</button>
+    </div>`;
 }
 
 async function openHumidorDetail(h) {
@@ -1324,9 +1328,12 @@ async function openHumidorDetail(h) {
     return;
   }
 
+  const totalStored = cigarsHere.reduce((sum, c) => sum + Number(c.quantity_here), 0);
+  const hasReading = h.latest_reading_time != null;
+
   const cigarsHtml = cigarsHere.length > 0
-    ? `<div class="humidor-cigar-list">${cigarsHere.map(humidorCigarLineHtml).join("")}</div>`
-    : `<p class="pr-meta">No cigars assigned to this humidor yet — pick it when adding a purchase.</p>`;
+    ? `<div class="humidor-cigar-list">${cigarsHere.map((hc) => humidorCigarLineHtml(hc, h.id)).join("")}</div>`
+    : `<p class="pr-meta">No cigars assigned here yet — open a cigar and use its Humidor section to assign it.</p>`;
 
   const chartHtml = readings.length > 0
     ? `<p class="chart-modal-sub">Last ${readings.length} readings</p><div class="chart-wrap"><canvas id="humidor-chart-canvas"></canvas></div>`
@@ -1334,6 +1341,11 @@ async function openHumidorDetail(h) {
 
   modalBody.innerHTML = `
     <h3 class="chart-modal-title">${esc(h.name)}</h3>
+    <div class="humidor-detail-summary">
+      <div class="humidor-detail-stat"><span class="humidor-detail-stat-val">${hasReading ? Number(h.latest_temperature_c) + "°" : "—"}</span><span class="humidor-detail-stat-lbl">temp</span></div>
+      <div class="humidor-detail-stat"><span class="humidor-detail-stat-val">${hasReading ? Number(h.latest_humidity_pct) + "%" : "—"}</span><span class="humidor-detail-stat-lbl">humidity</span></div>
+      <div class="humidor-detail-stat"><span class="humidor-detail-stat-val">${totalStored}</span><span class="humidor-detail-stat-lbl">cigars stored</span></div>
+    </div>
     <div class="md-section">
       <h4>Cigars stored here</h4>
       ${cigarsHtml}
@@ -1344,8 +1356,22 @@ async function openHumidorDetail(h) {
     </div>
   `;
 
-  modalBody.querySelectorAll(".humidor-cigar-line").forEach((btn) => {
-    btn.addEventListener("click", () => openCigarModal(Number(btn.dataset.cigarId)));
+  modalBody.querySelectorAll(".humidor-cigar-line-name").forEach((btn) => {
+    btn.addEventListener("click", () => openCigarModal(Number(btn.closest(".humidor-cigar-line").dataset.cigarId)));
+  });
+
+  modalBody.querySelectorAll(".humidor-cigar-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const line = btn.closest(".humidor-cigar-line");
+      if (!confirm("Take this cigar out of the humidor? It won't be logged as smoked — it just becomes unassigned, ready to move elsewhere.")) return;
+      try {
+        await apiFetch(`/api/cigars/${line.dataset.cigarId}/allocations/${line.dataset.humidorId}`, { method: "DELETE" });
+        openHumidorDetail(h);
+        loadInventory();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
   });
 
   if (readings.length === 0) return;
