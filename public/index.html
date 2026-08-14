@@ -1,301 +1,97 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The Humidor</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
+import { Router } from "express";
+import pool from "../db";
+import { asyncHandler } from "../asyncHandler";
 
-<div id="app" class="app">
+const router = Router();
 
-  <header class="topbar">
-    <div class="wordmark">
-      <img src="/icon.svg" alt="" class="wordmark-icon" />
-      <div class="wordmark-text">
-        <span class="wordmark-the">the</span>
-        <span class="wordmark-main">Humidor</span>
-      </div>
-    </div>
-    <nav class="tabs" id="tabs">
-      <button class="tab" data-view="inventory">Inventory</button>
-      <button class="tab" data-view="add">Add New</button>
-      <button class="tab" data-view="glossary">Glossary</button>
-      <button class="tab" data-view="sensors">Sensors</button>
-    </nav>
-  </header>
+// GET /api/humidors — her humidor için son okumayı da ekleyerek listele
+router.get(
+  "/",
+  asyncHandler(async (_req, res) => {
+    const result = await pool.query(`
+      SELECT h.*,
+             latest.temperature_c AS latest_temperature_c,
+             latest.humidity_pct AS latest_humidity_pct,
+             latest.reading_time AS latest_reading_time
+      FROM humidors h
+      LEFT JOIN LATERAL (
+        SELECT temperature_c, humidity_pct, reading_time
+        FROM sensor_readings sr
+        WHERE sr.humidor_id = h.id
+        ORDER BY sr.reading_time DESC
+        LIMIT 1
+      ) latest ON true
+      ORDER BY h.name
+    `);
+    res.json(result.rows);
+  })
+);
 
-  <main>
+// POST /api/humidors — yeni humidor tanımla (cihaz henüz kurulmamışsa mac_address boş bırakılabilir)
+router.post(
+  "/",
+  asyncHandler(async (req, res) => {
+    const { name, mac_address, location_note } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: "name alanı zorunlu" });
+    }
 
-    <!-- INVENTORY -->
-    <section id="view-inventory" class="view">
+    const result = await pool.query(
+      `INSERT INTO humidors (name, mac_address, location_note) VALUES ($1, $2, $3) RETURNING *`,
+      [name, mac_address ?? null, location_note ?? null]
+    );
+    res.status(201).json(result.rows[0]);
+  })
+);
 
-      <div class="dashboard" id="dashboard">
-        <div class="dash-totals">
-          <div class="dash-stat">
-            <span class="dash-num" id="stat-types">–</span>
-            <span class="dash-label">cigar types</span>
-          </div>
-          <div class="dash-stat">
-            <span class="dash-num" id="stat-stock">–</span>
-            <span class="dash-label">on hand</span>
-          </div>
-          <div class="dash-stat">
-            <span class="dash-num" id="stat-bought">–</span>
-            <span class="dash-label">bought</span>
-          </div>
-          <div class="dash-stat">
-            <span class="dash-num" id="stat-smoked">–</span>
-            <span class="dash-label">smoked</span>
-          </div>
-          <div class="dash-sensors" id="dash-sensors"></div>
-        </div>
-        <div class="dash-lists" id="dash-lists"></div>
-      </div>
+// PUT /api/humidors/:id — örn. cihaz kurulunca mac_address eklemek için
+router.put(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const { name, mac_address, location_note } = req.body;
+    const result = await pool.query(
+      `UPDATE humidors
+       SET name = COALESCE($2, name),
+           mac_address = COALESCE($3, mac_address),
+           location_note = COALESCE($4, location_note)
+       WHERE id = $1
+       RETURNING *`,
+      [req.params.id, name ?? null, mac_address ?? null, location_note ?? null]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Humidor bulunamadı" });
+    }
+    res.json(result.rows[0]);
+  })
+);
 
-      <div class="view-head">
-        <h2>Inventory</h2>
-        <p class="view-sub" id="inventory-count"></p>
-      </div>
+// GET /api/humidors/:id/readings?limit=100 — geçmiş grafiği için
+router.get(
+  "/:id/readings",
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 1000);
+    const result = await pool.query(
+      `SELECT reading_time, temperature_c, humidity_pct, battery_pct
+       FROM sensor_readings
+       WHERE humidor_id = $1
+       ORDER BY reading_time DESC
+       LIMIT $2`,
+      [req.params.id, limit]
+    );
+    res.json(result.rows);
+  })
+);
 
-      <div class="inventory-toolbar">
-        <input type="search" id="inv-search" placeholder="Search brand, line, size…" />
-        <select id="inv-sort">
-          <option value="name">Name (A–Z)</option>
-          <option value="rating">Rating (high–low)</option>
-          <option value="smoked">Most smoked</option>
-          <option value="stock">Most on hand</option>
-          <option value="newest">Recently added</option>
-        </select>
-        <select id="inv-filter-strength">
-          <option value="">All strengths</option>
-          <option value="mild">Mild</option>
-          <option value="mild-medium">Mild-Medium</option>
-          <option value="medium">Medium</option>
-          <option value="medium-full">Medium-Full</option>
-          <option value="full">Full</option>
-        </select>
-        <select id="inv-filter-wrapper">
-          <option value="">All wrappers</option>
-        </select>
-        <label class="inv-toggle"><input type="checkbox" id="inv-in-stock-only" /> In stock only</label>
-      </div>
+// DELETE /api/humidors/:id — cascade ile sensor_readings geçmişi de silinir
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const result = await pool.query(`DELETE FROM humidors WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Humidor bulunamadı" });
+    }
+    res.status(204).send();
+  })
+);
 
-      <div id="inventory-list" class="cigar-list"></div>
-      <button type="button" id="inv-load-more" class="btn-secondary inv-load-more" hidden>Load 20 more</button>
-      <p id="inventory-empty" class="empty-state" hidden>
-        No cigars yet. <button class="link-btn" data-view="add">Add your first one →</button>
-      </p>
-      <p id="inventory-no-match" class="empty-state" hidden>
-        No cigars match your filters. <button class="link-btn" id="inv-clear-filters">Clear filters</button>
-      </p>
-    </section>
-
-    <!-- ADD NEW -->
-    <section id="view-add" class="view" hidden>
-      <div class="view-head">
-        <h2>New Cigar</h2>
-        <p class="view-sub">Fill in the profile, then optionally log a purchase right away.</p>
-      </div>
-
-      <div class="extract-box">
-        <label class="field">
-          <span>Fill from a link (optional)</span>
-          <div class="extract-row">
-            <input id="extract-url" type="url" placeholder="https://…" />
-            <button type="button" id="extract-btn" class="btn-secondary">Fill</button>
-          </div>
-        </label>
-        <p id="extract-status" class="form-status"></p>
-        <p id="extract-notes" class="extract-notes" hidden></p>
-      </div>
-
-      <form id="cigar-form" class="ledger-form">
-        <input type="hidden" name="photo_url" id="cigar-photo-url" />
-        <div id="photo-preview" class="photo-preview" hidden>
-          <img id="photo-preview-img" alt="" />
-          <button type="button" id="photo-remove" class="link-btn">Remove photo</button>
-        </div>
-        <label class="field">
-          <span>Or upload a photo</span>
-          <input type="file" id="cigar-photo-file" accept="image/*" />
-        </label>
-        <div class="field-row">
-          <label class="field">
-            <span>Brand <em>*</em></span>
-            <input name="brand" required placeholder="Padrón" />
-          </label>
-          <label class="field">
-            <span>Line</span>
-            <input name="line" placeholder="1964 Anniversary" />
-          </label>
-          <label class="field">
-            <span>Size</span>
-            <input name="vitola" placeholder="Torpedo" />
-          </label>
-        </div>
-
-        <div class="field-row">
-          <label class="field field-sm">
-            <span>Length (mm)</span>
-            <input name="length_mm" type="number" min="0" />
-          </label>
-          <label class="field field-sm">
-            <span>Ring gauge</span>
-            <input name="ring_gauge" type="number" min="0" />
-          </label>
-          <label class="field field-sm">
-            <span>Strength</span>
-            <div class="combo">
-              <input type="text" class="combo-display" readonly placeholder="—" />
-              <input type="hidden" name="strength" value="" />
-              <div class="combo-options" hidden></div>
-            </div>
-          </label>
-        </div>
-
-        <div class="field-row">
-          <label class="field">
-            <span>Wrapper</span>
-            <div class="combo" data-category="wrapper">
-              <input name="wrapper" type="text" autocomplete="off" placeholder="Habano" />
-              <div class="combo-options" hidden></div>
-            </div>
-          </label>
-          <label class="field">
-            <span>Origin</span>
-            <div class="combo" data-category="origin">
-              <input name="origin" type="text" autocomplete="off" placeholder="Nicaragua" />
-              <div class="combo-options" hidden></div>
-            </div>
-          </label>
-        </div>
-
-        <label class="field">
-          <span>Expected flavor profile</span>
-          <textarea name="flavor_profile" rows="2" placeholder="Cocoa, coffee, spice…"></textarea>
-        </label>
-
-        <label class="field">
-          <span>Notes</span>
-          <textarea name="notes" rows="2"></textarea>
-
-        </label>
-
-        <div class="form-actions">
-          <button type="submit" class="btn-primary">Save cigar</button>
-          <span id="cigar-form-status" class="form-status"></span>
-        </div>
-      </form>
-    </section>
-
-    <!-- GLOSSARY -->
-    <section id="view-glossary" class="view" hidden>
-      <div class="view-head">
-        <h2>Glossary</h2>
-        <p class="view-sub">General reference for wrapper, binder, filler and origin.</p>
-      </div>
-      <div id="glossary-groups"></div>
-
-      <details class="add-term">
-        <summary>+ Add new term</summary>
-        <form id="glossary-form" class="ledger-form">
-          <div class="field-row">
-            <label class="field">
-              <span>Term</span>
-              <input name="term" required placeholder="Broadleaf" />
-            </label>
-            <label class="field field-sm">
-              <span>Category</span>
-              <select name="category" required>
-                <option value="wrapper">Wrapper</option>
-                <option value="binder">Binder</option>
-                <option value="filler">Filler</option>
-                <option value="origin">Origin</option>
-              </select>
-            </label>
-          </div>
-          <label class="field">
-            <span>Description</span>
-            <textarea name="description" rows="2" required></textarea>
-          </label>
-          <div class="form-actions">
-            <button type="submit" class="btn-primary">Add</button>
-            <span id="glossary-form-status" class="form-status"></span>
-          </div>
-        </form>
-      </details>
-    </section>
-
-    <!-- SENSORS -->
-    <section id="view-sensors" class="view" hidden>
-      <div class="view-head">
-        <h2>Sensors</h2>
-        <p class="view-sub">Humidor temperature/humidity tracking.</p>
-      </div>
-      <div id="humidor-grid" class="card-grid"></div>
-      <p id="humidor-empty" class="empty-state" hidden>
-        No humidors defined yet. Once a BLE thermometer is set up you'll see live readings here — but you can name your humidor ahead of time.
-      </p>
-
-      <details class="add-term">
-        <summary>+ Add humidor</summary>
-        <form id="humidor-form" class="ledger-form">
-          <div class="field-row">
-            <label class="field">
-              <span>Name <em>*</em></span>
-              <input name="name" required placeholder="Office humidor" />
-            </label>
-            <label class="field">
-              <span>Location note</span>
-              <input name="location_note" placeholder="Study" />
-            </label>
-          </div>
-          <label class="field">
-            <span>MAC address</span>
-            <input name="mac_address" placeholder="Filled in once the device is set up — leave blank for now" />
-          </label>
-          <div class="form-actions">
-            <button type="submit" class="btn-primary">Add</button>
-            <span id="humidor-form-status" class="form-status"></span>
-          </div>
-        </form>
-      </details>
-    </section>
-
-  </main>
-</div>
-
-<!-- CIGAR DETAIL MODAL -->
-<div id="modal" class="modal-backdrop" hidden>
-  <div class="modal-card">
-    <button id="modal-close" class="modal-close" aria-label="Close">×</button>
-    <div id="modal-body"></div>
-  </div>
-</div>
-
-<!-- DUPLICATE-CIGAR CONFIRMATION -->
-<div id="dupe-modal" class="modal-backdrop" hidden>
-  <div class="modal-card dupe-card">
-    <p id="dupe-message"></p>
-    <div class="dupe-actions">
-      <button type="button" id="dupe-open-existing" class="btn-primary">Open existing</button>
-      <button type="button" id="dupe-add-anyway" class="btn-secondary">Add as new anyway</button>
-    </div>
-  </div>
-</div>
-
-<!-- BACK TO TOP -->
-<button type="button" id="back-to-top" class="back-to-top" aria-label="Back to top">
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-</button>
-
-<script>window.__HUMIDOR_API_KEY__ = "__API_KEY__";</script>
-<script src="/app.js"></script>
-</body>
-</html>
+export default router;
