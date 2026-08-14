@@ -612,9 +612,10 @@ function renderCigarModal(c) {
         : `<p class="pr-meta">Not assigned to a humidor yet.</p>`}
       <form id="allocation-form" class="ledger-form" style="margin-top:10px">
         <div class="field-row purchase-row-compact">
-          <label class="field"><span>Humidor</span><select name="humidor_id" required>${humidorOptionsHtml()}</select></label>
-          <label class="field field-sm"><span>Qty *</span><input name="quantity" type="number" min="1" required /></label>
+          <label class="field"><span>Humidor</span><select name="humidor_id" id="allocation-humidor-select" required>${humidorOptionsHtml()}</select></label>
+          <label class="field field-sm"><span>Qty *</span><input name="quantity" id="allocation-qty-input" type="number" min="1" required /></label>
         </div>
+        <p class="field-hint" id="allocation-max-hint"></p>
         <div class="form-actions">
           <button type="submit" class="btn-primary">Set</button>
           <span class="form-status" data-status-for="allocation"></span>
@@ -755,6 +756,33 @@ function wireModalForms(cigarId) {
 
   // --- Humidor: allocation set/remove ---
   const allocationForm = document.getElementById("allocation-form");
+  const allocationHumidorSelect = document.getElementById("allocation-humidor-select");
+  const allocationQtyInput = document.getElementById("allocation-qty-input");
+  const allocationMaxHint = document.getElementById("allocation-max-hint");
+
+  // Seçilen humidor değiştikçe "en fazla kaç tane atayabilirsin" ipucunu
+  // güncelliyoruz -- bu humidor'un kendi mevcut değeri hariç tutuluyor (onu
+  // aynı değere ya da daha büyüğe ayarlamak serbest olmalı, backend de aynı mantıkla doğruluyor).
+  function updateAllocationMaxHint() {
+    const selectedHumidorId = Number(allocationHumidorSelect.value);
+    const allocs = currentCigarData.humidor_allocations || [];
+    const remaining = Number(currentCigarData.quantity_remaining ?? 0);
+    const unassigned = remaining - allocs.reduce((sum, a) => sum + Number(a.quantity), 0);
+    const existing = allocs.find((a) => a.humidor_id === selectedHumidorId);
+    const maxAllowed = unassigned + (existing ? Number(existing.quantity) : 0);
+
+    if (!allocationHumidorSelect.value) {
+      allocationMaxHint.textContent = "";
+      allocationQtyInput.removeAttribute("max");
+      return;
+    }
+    allocationMaxHint.textContent = maxAllowed > 0 ? `Up to ${maxAllowed} available` : "No cigars available to allocate here";
+    allocationQtyInput.max = Math.max(maxAllowed, 0);
+  }
+
+  allocationHumidorSelect.addEventListener("change", updateAllocationMaxHint);
+  updateAllocationMaxHint();
+
   allocationForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const status = allocationForm.querySelector('[data-status-for="allocation"]');
