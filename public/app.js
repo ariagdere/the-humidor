@@ -109,11 +109,13 @@ async function loadStats() {
 
 // --- Inventory (list view, with search/sort/filter) ------------------------
 let cigarsCache = [];
+const INVENTORY_PAGE_SIZE = 20;
+let inventoryVisibleCount = INVENTORY_PAGE_SIZE;
 
 async function loadInventory() {
   cigarsCache = await apiFetch("/api/cigars");
   populateWrapperFilterOptions();
-  applyInventoryFilters();
+  applyInventoryFilters(true);
 }
 
 function populateWrapperFilterOptions() {
@@ -124,7 +126,12 @@ function populateWrapperFilterOptions() {
   if (distinct.includes(current)) sel.value = current;
 }
 
-function applyInventoryFilters() {
+// resetPagination: filtre/arama/sıralama değiştiğinde true (baştan 20 göster),
+// "Load more" tıklandığında false (sadece görünen sayıyı artır, listeyi
+// başa sarma).
+function applyInventoryFilters(resetPagination) {
+  if (resetPagination) inventoryVisibleCount = INVENTORY_PAGE_SIZE;
+
   const search = document.getElementById("inv-search").value.trim().toLowerCase();
   const sortBy = document.getElementById("inv-sort").value;
   const strengthFilter = document.getElementById("inv-filter-strength").value;
@@ -167,12 +174,14 @@ function renderInventoryList(cigars, filtersActive) {
   const empty = document.getElementById("inventory-empty");
   const noMatch = document.getElementById("inventory-no-match");
   const count = document.getElementById("inventory-count");
+  const loadMoreBtn = document.getElementById("inv-load-more");
   list.innerHTML = "";
 
   if (cigarsCache.length === 0) {
     empty.hidden = false;
     noMatch.hidden = true;
     count.textContent = "";
+    loadMoreBtn.hidden = true;
     return;
   }
   empty.hidden = true;
@@ -180,14 +189,21 @@ function renderInventoryList(cigars, filtersActive) {
   if (cigars.length === 0) {
     noMatch.hidden = false;
     count.textContent = `0 of ${cigarsCache.length} cigars`;
+    loadMoreBtn.hidden = true;
     return;
   }
   noMatch.hidden = true;
-  count.textContent = filtersActive
-    ? `${cigars.length} of ${cigarsCache.length} cigars`
-    : `${cigars.length} cigar${cigars.length === 1 ? "" : "s"}`;
 
-  for (const c of cigars) {
+  const visible = cigars.slice(0, inventoryVisibleCount);
+  const remainingCount = cigars.length - visible.length;
+
+  let countText = remainingCount > 0
+    ? `Showing ${visible.length} of ${cigars.length} cigar${cigars.length === 1 ? "" : "s"}`
+    : `${cigars.length} cigar${cigars.length === 1 ? "" : "s"}`;
+  if (filtersActive) countText += ` (${cigarsCache.length} total)`;
+  count.textContent = countText;
+
+  for (const c of visible) {
     const remaining = Number(c.quantity_remaining ?? 0);
     const row = document.createElement("button");
     row.type = "button";
@@ -216,18 +232,32 @@ function renderInventoryList(cigars, filtersActive) {
     `;
     list.appendChild(row);
   }
+
+  if (remainingCount > 0) {
+    loadMoreBtn.hidden = false;
+    loadMoreBtn.textContent = remainingCount > INVENTORY_PAGE_SIZE
+      ? `Load ${INVENTORY_PAGE_SIZE} more`
+      : `Load remaining ${remainingCount}`;
+  } else {
+    loadMoreBtn.hidden = true;
+  }
 }
 
-["inv-search"].forEach((id) => document.getElementById(id).addEventListener("input", applyInventoryFilters));
+document.getElementById("inv-load-more").addEventListener("click", () => {
+  inventoryVisibleCount += INVENTORY_PAGE_SIZE;
+  applyInventoryFilters(false);
+});
+
+["inv-search"].forEach((id) => document.getElementById(id).addEventListener("input", () => applyInventoryFilters(true)));
 ["inv-sort", "inv-filter-strength", "inv-filter-wrapper", "inv-in-stock-only"].forEach((id) =>
-  document.getElementById(id).addEventListener("change", applyInventoryFilters)
+  document.getElementById(id).addEventListener("change", () => applyInventoryFilters(true))
 );
 document.getElementById("inv-clear-filters").addEventListener("click", () => {
   document.getElementById("inv-search").value = "";
   document.getElementById("inv-filter-strength").value = "";
   document.getElementById("inv-filter-wrapper").value = "";
   document.getElementById("inv-in-stock-only").checked = false;
-  applyInventoryFilters();
+  applyInventoryFilters(true);
 });
 
 // --- Cigar detail modal ------------------------------------------------------
@@ -1053,6 +1083,16 @@ humidorForm.addEventListener("submit", async (e) => {
   }
 });
 
+// --- Back to top -------------------------------------------------------
+const backToTopBtn = document.getElementById("back-to-top");
+function updateBackToTopVisibility() {
+  backToTopBtn.classList.toggle("visible", window.scrollY > 400);
+}
+window.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
+backToTopBtn.addEventListener("click", () => {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
 // --- Startup -----------------------------------------------------------
 function initApp() {
   switchView("inventory");
@@ -1060,6 +1100,7 @@ function initApp() {
   loadInventory().catch((e) => console.error(e));
   loadGlossary().catch((e) => console.error(e));
   loadHumidors().catch((e) => console.error(e));
+  updateBackToTopVisibility(); // sayfa zaten scroll edilmiş halde açılırsa (geri tuşu vb.)
 }
 
 initApp();
