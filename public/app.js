@@ -181,6 +181,23 @@ function applyInventoryFilters(resetPagination) {
   renderInventoryList(filtered, filtersActive);
 }
 
+async function toggleFavorite(e, id, starEl) {
+  e.preventDefault();
+  e.stopPropagation();
+  const cigar = cigarsCache.find((x) => x.id === id);
+  if (!cigar) return;
+  const newVal = !cigar.is_favorite;
+  starEl.classList.toggle("is-favorite", newVal);
+  try {
+    await apiFetch(`/api/cigars/${id}`, { method: "PUT", body: JSON.stringify({ is_favorite: newVal }) });
+    cigar.is_favorite = newVal;
+    if (currentCigarData && currentCigarData.id === id) currentCigarData.is_favorite = newVal;
+  } catch (err) {
+    starEl.classList.toggle("is-favorite", !newVal);
+    alert(err.message);
+  }
+}
+
 function renderInventoryList(cigars, filtersActive) {
   const list = document.getElementById("inventory-list");
   const empty = document.getElementById("inventory-empty");
@@ -240,10 +257,18 @@ function renderInventoryList(cigars, filtersActive) {
         <div class="cigar-row-num"><span class="cigar-row-num-val">${c.total_smoked}</span><span class="cigar-row-num-lbl">smoked</span></div>
         <div class="cigar-row-num"><span class="cigar-row-num-val">${remaining}</span><span class="cigar-row-num-lbl">left</span></div>
         <span class="cigar-row-score${c.overall_score ? "" : " unscored"}">${c.overall_score ? c.overall_score + "/5" : "—"}</span>
+        <span class="favorite-star${c.is_favorite ? " is-favorite" : ""}" data-id="${c.id}" role="button" tabindex="0" aria-label="Toggle favorite">★</span>
       </div>
     `;
     list.appendChild(row);
   }
+
+  list.querySelectorAll(".favorite-star").forEach((star) => {
+    star.addEventListener("click", (e) => toggleFavorite(e, Number(star.dataset.id), star));
+    star.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") toggleFavorite(e, Number(star.dataset.id), star);
+    });
+  });
 
   if (remainingCount > 0) {
     loadMoreBtn.hidden = false;
@@ -284,21 +309,39 @@ function closeModal() {
   modalBody.innerHTML = "";
   editingTastingId = null;
   editingPurchaseId = null;
+  if (humidorChartInstance) {
+    humidorChartInstance.destroy();
+    humidorChartInstance = null;
+  }
 }
 
 async function openCigarModal(id) {
   modal.hidden = false;
   modalBody.innerHTML = `<p class="modal-loading">Loading…</p>`;
+  if (humidorChartInstance) {
+    humidorChartInstance.destroy();
+    humidorChartInstance = null;
+  }
   const c = await apiFetch(`/api/cigars/${id}`);
   editingTastingId = null;
   editingPurchaseId = null;
   renderCigarModal(c);
 }
 
-const TASTING_FIELDS = ["tasting_date", "location"];
-const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url"];
+const TASTING_FIELDS = ["tasting_date", "location", "humidor_id"];
+const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url", "humidor_id"];
 const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes", "duration_minutes"];
 const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"];
+
+// Purchase/tasting formlarındaki "hangi humidor" seçicisi için ortak seçenek listesi.
+// humidorsCache app başlarken loadHumidors() ile zaten dolduruluyor (bkz. initApp).
+function humidorOptionsHtml(selectedId) {
+  const sel = selectedId != null ? String(selectedId) : "";
+  const opts = humidorsCache.map(
+    (h) => `<option value="${h.id}"${String(h.id) === sel ? " selected" : ""}>${esc(h.name)}</option>`
+  );
+  return `<option value=""${sel === "" ? " selected" : ""}>—</option>${opts.join("")}`;
+}
 
 // Sertlik seçimini de wrapper/origin ile GÖRSEL OLARAK AYNI özel dropdown ile
 // gösteriyoruz (native <select> farklı görünüyordu, bkz. ekran görüntüsü).
@@ -338,10 +381,17 @@ function wireFixedCombo(container) {
   });
 }
 
+function humidorName(id) {
+  if (id == null) return null;
+  const h = humidorsCache.find((x) => x.id === Number(id));
+  return h ? h.name : null;
+}
+
 function tastingLineHtml(t) {
+  const hName = humidorName(t.humidor_id);
   return `
     <div class="tasting-line" data-tasting-id="${t.id}">
-      <span class="tasting-line-text">${fmtDate(t.tasting_date)}${t.location ? ` · ${esc(t.location)}` : ""}</span>
+      <span class="tasting-line-text">${fmtDate(t.tasting_date)}${t.location ? ` · ${esc(t.location)}` : ""}${hName ? ` · <span class="tasting-line-humidor">${esc(hName)}</span>` : ""}</span>
       <span class="tasting-line-actions">
         <button type="button" class="tasting-edit-btn" data-id="${t.id}">Edit</button>
         <button type="button" class="tasting-delete-btn danger" data-id="${t.id}">Delete</button>
@@ -350,9 +400,10 @@ function tastingLineHtml(t) {
 }
 
 function purchaseLineHtml(p) {
+  const hName = humidorName(p.humidor_id);
   return `
     <div class="tasting-line" data-purchase-id="${p.id}">
-      <span class="tasting-line-text">${fmtDate(p.purchase_date)}${p.source ? ` · ${esc(p.source)}` : ""} · ${p.quantity} pcs${p.unit_price ? ` · ${fmtMoney(p.unit_price)}` : ""}</span>
+      <span class="tasting-line-text">${fmtDate(p.purchase_date)}${p.source ? ` · ${esc(p.source)}` : ""} · ${p.quantity} pcs${p.unit_price ? ` · ${fmtMoney(p.unit_price)}` : ""}${hName ? ` · <span class="tasting-line-humidor">${esc(hName)}</span>` : ""}</span>
       <span class="tasting-line-actions">
         <button type="button" class="purchase-edit-btn" data-id="${p.id}">Edit</button>
         <button type="button" class="purchase-delete-btn danger" data-id="${p.id}">Delete</button>
@@ -415,12 +466,13 @@ function renderCigarModal(c) {
   const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced || c.duration_minutes;
 
   const lastPurchase = c.purchases[0];
+  const lastPurchaseHumidor = lastPurchase ? humidorName(lastPurchase.humidor_id) : null;
   const lastPurchaseHtml = lastPurchase
     ? `<p class="mini-label">Last purchased</p>
        <div class="purchase-row" data-purchase-id="${lastPurchase.id}">
          <div>
            <div class="pr-source">${esc(lastPurchase.source || "Unknown source")}</div>
-           <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs</div>
+           <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs${lastPurchaseHumidor ? ` · ${esc(lastPurchaseHumidor)}` : ""}</div>
          </div>
          <div style="text-align:right">
            <div class="pr-price">${fmtMoney(lastPurchase.unit_price) || ""}</div>
@@ -440,7 +492,7 @@ function renderCigarModal(c) {
   modalBody.innerHTML = `
     <div class="md-header">
       <div class="md-header-text">
-        <h3 class="md-title">${esc(title)}</h3>
+        <h3 class="md-title">${esc(title)} <span class="favorite-star favorite-star-lg${c.is_favorite ? " is-favorite" : ""}" id="md-favorite-star" role="button" tabindex="0" aria-label="Toggle favorite">★</span></h3>
         <p class="md-sub">${esc(c.vitola) || "&nbsp;"}</p>
       </div>
       ${c.has_photo ? `<img class="md-photo" src="${photoUrl(c)}" alt="" id="md-photo-img" />` : ""}
@@ -531,10 +583,11 @@ function renderCigarModal(c) {
       ${lastPurchaseHtml}
       <form id="purchase-form" class="ledger-form" style="margin-top:10px">
         <div class="field-row purchase-row-compact">
-          <label class="field"><span>Source</span><input name="source" placeholder="Where did you purchase?" /></label>
           <label class="field field-sm"><span>Date</span><input name="purchase_date" type="date" value="${todayISO()}" /></label>
+          <label class="field"><span>Source</span><input name="source" placeholder="Where did you purchase?" /></label>
           <label class="field field-sm"><span>Qty *</span><input name="quantity" type="number" min="1" required /></label>
           <label class="field field-sm"><span>Price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
+          <label class="field field-sm"><span>Humidor</span><select name="humidor_id">${humidorOptionsHtml()}</select></label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="purchase-submit-btn">Save</button>
@@ -559,6 +612,7 @@ function renderCigarModal(c) {
         <div class="field-row">
           <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
           <label class="field"><span>Location</span><input name="location" placeholder="Where did you smoke?" /></label>
+          <label class="field field-sm"><span>From humidor</span><select name="humidor_id">${humidorOptionsHtml()}</select></label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="tasting-submit-btn">Log tasting</button>
@@ -592,6 +646,14 @@ function openLightbox(src) {
 function wireModalForms(cigarId) {
   const photoImg = document.getElementById("md-photo-img");
   if (photoImg) photoImg.addEventListener("click", () => openLightbox(photoImg.src));
+
+  const favStar = document.getElementById("md-favorite-star");
+  if (favStar) {
+    favStar.addEventListener("click", (e) => toggleFavorite(e, cigarId, favStar));
+    favStar.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") toggleFavorite(e, cigarId, favStar);
+    });
+  }
 
   const profileForm = document.getElementById("profile-form");
   profileForm.addEventListener("submit", async (e) => {
@@ -1060,12 +1122,20 @@ async function loadHumidors() {
         : `<p class="humidor-waiting">${h.mac_address ? "Waiting for data…" : "No MAC address yet — readings will start once the device is set up"}</p>`}
       ${h.mac_address ? `<div class="humidor-mac">${esc(h.mac_address)}</div>` : ""}
       <div class="humidor-card-actions">
+        <button type="button" class="link-btn humidor-history-btn" data-id="${h.id}">Details</button>
         <button type="button" class="link-btn humidor-edit-btn" data-id="${h.id}">Edit</button>
         <button type="button" class="link-btn danger humidor-delete-btn" data-id="${h.id}">Delete</button>
       </div>
     `;
     grid.appendChild(card);
   }
+
+  grid.querySelectorAll(".humidor-history-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const h = humidorsCache.find((x) => x.id === Number(btn.dataset.id));
+      if (h) openHumidorDetail(h);
+    });
+  });
 
   grid.querySelectorAll(".humidor-edit-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1104,6 +1174,124 @@ function cancelEditHumidor() {
   humidorForm.reset();
   document.getElementById("humidor-submit-btn").textContent = "Add";
   document.getElementById("humidor-cancel-edit").hidden = true;
+}
+
+// --- Sensor history chart -----------------------------------------------
+let humidorChartInstance = null;
+
+function humidorCigarLineHtml(hc) {
+  const title = [hc.brand, hc.line].filter(Boolean).join(" ");
+  return `
+    <button type="button" class="humidor-cigar-line" data-cigar-id="${hc.id}">
+      <span class="humidor-cigar-line-title">${esc(title)}${hc.vitola ? `<span class="humidor-cigar-line-sub"> · ${esc(hc.vitola)}</span>` : ""}</span>
+      <span class="humidor-cigar-line-qty">${hc.quantity_here}</span>
+    </button>`;
+}
+
+async function openHumidorDetail(h) {
+  modal.hidden = false;
+  modalBody.innerHTML = `<p class="modal-loading">Loading…</p>`;
+
+  const [cigarsHere, readings] = await Promise.all([
+    apiFetch(`/api/humidors/${h.id}/cigars`),
+    apiFetch(`/api/humidors/${h.id}/readings?limit=100`),
+  ]);
+
+  const cigarsHtml = cigarsHere.length > 0
+    ? `<div class="humidor-cigar-list">${cigarsHere.map(humidorCigarLineHtml).join("")}</div>`
+    : `<p class="pr-meta">No cigars assigned to this humidor yet — pick it when adding a purchase.</p>`;
+
+  const chartHtml = readings.length > 0
+    ? `<p class="chart-modal-sub">Last ${readings.length} readings</p><div class="chart-wrap"><canvas id="humidor-chart-canvas"></canvas></div>`
+    : `<p class="pr-meta">No sensor readings yet.</p>`;
+
+  modalBody.innerHTML = `
+    <h3 class="chart-modal-title">${esc(h.name)}</h3>
+    <div class="md-section">
+      <h4>Cigars stored here</h4>
+      ${cigarsHtml}
+    </div>
+    <div class="md-section">
+      <h4>Temperature &amp; humidity history</h4>
+      ${chartHtml}
+    </div>
+  `;
+
+  modalBody.querySelectorAll(".humidor-cigar-line").forEach((btn) => {
+    btn.addEventListener("click", () => openCigarModal(Number(btn.dataset.cigarId)));
+  });
+
+  if (readings.length === 0) return;
+
+  // API en yeniden en eskiye (DESC) dönüyor -- grafikte soldan sağa kronolojik
+  // gitmesi için ters çeviriyoruz.
+  const chronological = [...readings].reverse();
+  const labels = chronological.map((r) =>
+    new Date(r.reading_time).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    })
+  );
+  const temps = chronological.map((r) => Number(r.temperature_c));
+  const humidities = chronological.map((r) => Number(r.humidity_pct));
+
+  if (humidorChartInstance) humidorChartInstance.destroy();
+  const ctx = document.getElementById("humidor-chart-canvas").getContext("2d");
+  humidorChartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Temperature (°C)",
+          data: temps,
+          borderColor: "#7A4A2E",
+          backgroundColor: "#7A4A2E",
+          yAxisID: "yTemp",
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2,
+        },
+        {
+          label: "Humidity (%)",
+          data: humidities,
+          borderColor: "#4A5D3A",
+          backgroundColor: "#4A5D3A",
+          yAxisID: "yHum",
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: {
+          ticks: { color: "#6B5D4F", maxRotation: 0, autoSkipPadding: 16 },
+          grid: { color: "#E1D5BE" },
+        },
+        yTemp: {
+          type: "linear",
+          position: "left",
+          title: { display: true, text: "°C", color: "#7A4A2E" },
+          ticks: { color: "#7A4A2E" },
+          grid: { color: "#E1D5BE" },
+        },
+        yHum: {
+          type: "linear",
+          position: "right",
+          title: { display: true, text: "%", color: "#4A5D3A" },
+          ticks: { color: "#4A5D3A" },
+          grid: { drawOnChartArea: false },
+        },
+      },
+      plugins: {
+        legend: { labels: { color: "#2B211A" } },
+      },
+    },
+  });
 }
 
 // Renders the compact, right-aligned sensor summary in the dashboard's stat row.
