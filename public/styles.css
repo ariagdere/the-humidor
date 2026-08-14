@@ -276,6 +276,11 @@ button { font-family: var(--font-body); cursor: pointer; }
 .g-desc { color: var(--ink-soft); font-size: 14px; line-height: 1.5; margin: 0; }
 
 .add-term { margin-top: 12px; overflow: hidden; }
+/* Combo (Wrapper/Origin/Strength) dropdown'ı .add-term'in içinde absolute
+   konumlanıyor, bu yüzden normal akışa girmiyor ve yukarıdaki overflow:hidden
+   onu kesiyor (Medium-Full/Full gibi alttaki seçenekler görünmüyor/tıklanamıyor).
+   Dropdown açıkken (combo-options'ta hidden özniteliği yokken) taşmaya izin ver. */
+.add-term:has(.combo-options:not([hidden])) { overflow: visible; }
 .add-term summary {
   cursor: pointer; font-weight: 700; color: var(--cedar); font-size: 14px;
   padding: 10px 0;
