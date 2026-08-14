@@ -1305,7 +1305,7 @@ function humidorCigarLineHtml(hc, humidorId) {
       <button type="button" class="humidor-cigar-line-name">
         <span class="humidor-cigar-line-title">${esc(title)}${hc.vitola ? `<span class="humidor-cigar-line-sub"> · ${esc(hc.vitola)}</span>` : ""}</span>
       </button>
-      <span class="humidor-cigar-line-qty">${hc.quantity_here}</span>
+      <input type="number" class="humidor-cigar-qty-input" min="1" value="${hc.quantity_here}" data-original="${hc.quantity_here}" aria-label="Quantity in this humidor" />
       <button type="button" class="humidor-cigar-remove-btn" title="Remove from this humidor" aria-label="Remove from this humidor">×</button>
     </div>`;
 }
@@ -1358,6 +1358,35 @@ async function openHumidorDetail(h) {
 
   modalBody.querySelectorAll(".humidor-cigar-line-name").forEach((btn) => {
     btn.addEventListener("click", () => openCigarModal(Number(btn.closest(".humidor-cigar-line").dataset.cigarId)));
+  });
+
+  modalBody.querySelectorAll(".humidor-cigar-qty-input").forEach((input) => {
+    const commit = async () => {
+      const original = input.dataset.original;
+      const newVal = Number(input.value);
+      if (!Number.isFinite(newVal) || newVal < 1) {
+        input.value = original;
+        return;
+      }
+      if (String(newVal) === original) return; // değişmediyse hiçbir şey yapma
+
+      const line = input.closest(".humidor-cigar-line");
+      try {
+        await apiFetch(`/api/cigars/${line.dataset.cigarId}/allocations/${line.dataset.humidorId}`, {
+          method: "PUT",
+          body: JSON.stringify({ quantity: newVal }),
+        });
+        openHumidorDetail(h);
+        loadInventory();
+      } catch (err) {
+        alert(err.message);
+        input.value = original;
+      }
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    });
   });
 
   modalBody.querySelectorAll(".humidor-cigar-remove-btn").forEach((btn) => {
