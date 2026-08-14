@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import pool from "../db";
 import { asyncHandler } from "../asyncHandler";
 import { downloadPhoto } from "../photoStorage";
@@ -183,6 +183,35 @@ router.put(
       [id, ...values]
     );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Puro bulunamadı" });
+    }
+    res.json(stripPhotoData(result.rows[0]));
+  })
+);
+
+// PUT /api/cigars/:id/photo — kullanıcının kendi seçtiği dosyayı yükler.
+// photo_url'den otomatik indirme başarısız olduğunda (link ölü, site engelliyor,
+// resim değil) manuel bir yedek yol. TEK satırlık UPDATE olduğu için her
+// yükleme öncekinin YERİNE geçiyor — URL değiştiğinde olan davranışın aynısı,
+// storage'da eski fotoğraflardan artık kalmıyor. photo_url alanına dokunmuyoruz,
+// o hâlâ "orijinal kaynak" referansı olarak durabilir.
+router.put(
+  "/:id/photo",
+  express.raw({ type: "image/*", limit: "8mb" }),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: "Fotoğraf verisi boş veya Content-Type image/* değil" });
+    }
+
+    const mime = (req.get("content-type") || "image/jpeg").split(";")[0].trim();
+
+    const result = await pool.query(
+      `UPDATE cigars SET photo_data = $2, photo_mime = $3, updated_at = now() WHERE id = $1 RETURNING *`,
+      [id, req.body, mime]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Puro bulunamadı" });
     }
