@@ -4,7 +4,7 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
-const EDITABLE_PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url"];
+const EDITABLE_PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url", "humidor_id"];
 
 // PUT /api/purchases/:id — kısmi güncelleme
 router.put(
