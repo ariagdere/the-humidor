@@ -59,7 +59,13 @@ router.get(
           (SELECT json_agg(t.* ORDER BY t.tasting_date DESC, t.id DESC)
            FROM tastings t WHERE t.cigar_id = c.id),
           '[]'
-        ) AS tastings
+        ) AS tastings,
+        COALESCE(
+          (SELECT json_agg(json_build_object('humidor_id', a.humidor_id, 'humidor_name', h.name, 'quantity', a.quantity) ORDER BY h.name)
+           FROM cigar_humidor_allocations a JOIN humidors h ON h.id = a.humidor_id
+           WHERE a.cigar_id = c.id),
+          '[]'
+        ) AS humidor_allocations
        FROM cigars c
        JOIN cigars_with_stock s ON s.id = c.id
        WHERE c.id = $1`,
@@ -252,7 +258,7 @@ router.post(
   "/:id/purchases",
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { source, purchase_date, quantity, unit_price, box_code, reference_url, humidor_id } = req.body;
+    const { source, purchase_date, quantity, unit_price, box_code, reference_url } = req.body;
 
     if (!quantity || Number(quantity) <= 0) {
       return res.status(400).json({ error: "quantity zorunlu ve 0'dan büyük olmalı" });
@@ -264,10 +270,10 @@ router.post(
     }
 
     const result = await pool.query(
-      `INSERT INTO purchases (cigar_id, source, purchase_date, quantity, unit_price, box_code, reference_url, humidor_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO purchases (cigar_id, source, purchase_date, quantity, unit_price, box_code, reference_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        RETURNING *`,
-      [id, source ?? null, purchase_date ?? null, quantity, unit_price ?? null, box_code ?? null, reference_url ?? null, humidor_id ?? null]
+      [id, source ?? null, purchase_date ?? null, quantity, unit_price ?? null, box_code ?? null, reference_url ?? null]
     );
     res.status(201).json(result.rows[0]);
   })
@@ -305,7 +311,62 @@ router.post(
        RETURNING *`,
       [id, tasting_date ?? null, location ?? null, humidor_id ?? null]
     );
+
+    // Belirli bir humidor'dan içildiyse, o humidor'un dağıtımından 1 düşüyoruz --
+    // 0'a inerse satırı tamamen siliyoruz (bkz. migration notu).
+    if (humidor_id) {
+      await pool.query(
+        `UPDATE cigar_humidor_allocations SET quantity = quantity - 1, updated_at = now()
+         WHERE cigar_id = $1 AND humidor_id = $2 AND quantity > 0`,
+        [id, humidor_id]
+      );
+      await pool.query(
+        `DELETE FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2 AND quantity <= 0`,
+        [id, humidor_id]
+      );
+    }
+
     res.status(201).json(result.rows[0]);
+  })
+);
+
+// PUT /api/cigars/:id/allocations/:humidorId — bu puronun şu humidordaki adedini
+// belirle (satır yoksa oluşturur, varsa üzerine yazar). 0 veya daha az gönderilirse
+// satırı tamamen siler -- "satır var = adet > 0" değişmezi hep korunur.
+router.put(
+  "/:id/allocations/:humidorId",
+  asyncHandler(async (req, res) => {
+    const { id, humidorId } = req.params;
+    const quantity = Number(req.body.quantity);
+
+    if (!Number.isFinite(quantity)) {
+      return res.status(400).json({ error: "quantity zorunlu ve sayı olmalı" });
+    }
+
+    if (quantity <= 0) {
+      await pool.query(`DELETE FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2`, [id, humidorId]);
+      return res.json({ cigar_id: Number(id), humidor_id: Number(humidorId), quantity: 0, removed: true });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO cigar_humidor_allocations (cigar_id, humidor_id, quantity)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (cigar_id, humidor_id) DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = now()
+       RETURNING *`,
+      [id, humidorId, quantity]
+    );
+    res.json(result.rows[0]);
+  })
+);
+
+// DELETE /api/cigars/:id/allocations/:humidorId — bu humidor'daki atamayı tamamen
+// kaldırır, adet tekrar "boşta" sayılır.
+router.delete(
+  "/:id/allocations/:humidorId",
+  asyncHandler(async (req, res) => {
+    const { id, humidorId } = req.params;
+    await pool.query(`DELETE FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2`, [id, humidorId]);
+    res.status(204).send();
   })
 );
 
