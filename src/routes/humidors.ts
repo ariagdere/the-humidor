@@ -103,4 +103,30 @@ router.delete(
   })
 );
 
+// GET /api/humidors/:id/cigars — bu humidor'a alınmış (ve hâlâ elde kalan) puro listesi.
+// Aynı puronun farklı alım kayıtları farklı humidorlara ait olabilir (bkz. purchases.humidor_id
+// migration notu) -- burada SADECE bu humidor'a atanmış alımları topluyoruz. Eğer bu humidor'dan
+// tadımlar da humidor_id ile işaretlenmişse (opsiyonel), onları da düşüyoruz; işaretlenmemiş
+// tadımlar genel toplamdan düşer ama buradaki sayıyı etkilemez -- bilinçli bir tutarlılık kararı.
+router.get(
+  "/:id/cigars",
+  asyncHandler(async (req, res) => {
+    const result = await pool.query(
+      `SELECT c.id, c.brand, c.line, c.vitola, c.strength,
+              (bought.qty - COALESCE(smoked.cnt, 0))::int AS quantity_here
+       FROM (
+         SELECT cigar_id, SUM(quantity) AS qty FROM purchases WHERE humidor_id = $1 GROUP BY cigar_id
+       ) bought
+       JOIN cigars c ON c.id = bought.cigar_id
+       LEFT JOIN (
+         SELECT cigar_id, COUNT(*) AS cnt FROM tastings WHERE humidor_id = $1 GROUP BY cigar_id
+       ) smoked ON smoked.cigar_id = bought.cigar_id
+       WHERE bought.qty - COALESCE(smoked.cnt, 0) > 0
+       ORDER BY c.brand, c.line`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  })
+);
+
 export default router;
