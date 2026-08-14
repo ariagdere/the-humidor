@@ -162,6 +162,11 @@ function applyInventoryFilters(resetPagination) {
   });
 
   filtered.sort((a, b) => {
+    // Favoriler seçili sıralama kriterinden bağımsız her zaman önce gelir --
+    // backend'in ORDER BY is_favorite DESC'i burada eziliyordu, düzeltiyoruz.
+    if (Boolean(a.is_favorite) !== Boolean(b.is_favorite)) {
+      return a.is_favorite ? -1 : 1;
+    }
     switch (sortBy) {
       case "rating":
         return (b.overall_score || 0) - (a.overall_score || 0);
@@ -329,7 +334,7 @@ async function openCigarModal(id) {
 }
 
 const TASTING_FIELDS = ["tasting_date", "location", "humidor_id"];
-const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url", "humidor_id"];
+const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url"];
 const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes", "duration_minutes"];
 const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"];
 
@@ -387,6 +392,27 @@ function humidorName(id) {
   return h ? h.name : null;
 }
 
+function allocationLineHtml(a) {
+  return `
+    <div class="tasting-line" data-humidor-id="${a.humidor_id}">
+      <span class="tasting-line-text">${esc(a.humidor_name)} · ${a.quantity} pcs</span>
+      <span class="tasting-line-actions">
+        <button type="button" class="allocation-remove-btn danger" data-humidor-id="${a.humidor_id}">Remove</button>
+      </span>
+    </div>`;
+}
+
+// Tadım formunda sadece bu puronun ŞU AN atanmış olduğu humidor(lar) listelenir --
+// hiçbir humidor'a atanmamışsa alan hiç gösterilmez (bkz. kullanıcı isteği).
+function tastingHumidorFieldHtml(c) {
+  const allocations = c.humidor_allocations || [];
+  if (allocations.length === 0) return "";
+  const options = allocations
+    .map((a) => `<option value="${a.humidor_id}">${esc(a.humidor_name)} (${a.quantity})</option>`)
+    .join("");
+  return `<label class="field field-sm"><span>From humidor</span><select name="humidor_id"><option value="">—</option>${options}</select></label>`;
+}
+
 function tastingLineHtml(t) {
   const hName = humidorName(t.humidor_id);
   return `
@@ -400,10 +426,9 @@ function tastingLineHtml(t) {
 }
 
 function purchaseLineHtml(p) {
-  const hName = humidorName(p.humidor_id);
   return `
     <div class="tasting-line" data-purchase-id="${p.id}">
-      <span class="tasting-line-text">${fmtDate(p.purchase_date)}${p.source ? ` · ${esc(p.source)}` : ""} · ${p.quantity} pcs${p.unit_price ? ` · ${fmtMoney(p.unit_price)}` : ""}${hName ? ` · <span class="tasting-line-humidor">${esc(hName)}</span>` : ""}</span>
+      <span class="tasting-line-text">${fmtDate(p.purchase_date)}${p.source ? ` · ${esc(p.source)}` : ""} · ${p.quantity} pcs${p.unit_price ? ` · ${fmtMoney(p.unit_price)}` : ""}</span>
       <span class="tasting-line-actions">
         <button type="button" class="purchase-edit-btn" data-id="${p.id}">Edit</button>
         <button type="button" class="purchase-delete-btn danger" data-id="${p.id}">Delete</button>
@@ -452,6 +477,9 @@ function renderCigarModal(c) {
   const remaining = Number(c.quantity_remaining ?? 0);
   currentCigarData = c;
 
+  const allocations = c.humidor_allocations || [];
+  const unassignedCount = remaining - allocations.reduce((sum, a) => sum + Number(a.quantity), 0);
+
   const title = [c.brand, c.line].filter(Boolean).join(" ");
 
   const factRows = [
@@ -466,13 +494,12 @@ function renderCigarModal(c) {
   const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced || c.duration_minutes;
 
   const lastPurchase = c.purchases[0];
-  const lastPurchaseHumidor = lastPurchase ? humidorName(lastPurchase.humidor_id) : null;
   const lastPurchaseHtml = lastPurchase
     ? `<p class="mini-label">Last purchased</p>
        <div class="purchase-row" data-purchase-id="${lastPurchase.id}">
          <div>
            <div class="pr-source">${esc(lastPurchase.source || "Unknown source")}</div>
-           <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs${lastPurchaseHumidor ? ` · ${esc(lastPurchaseHumidor)}` : ""}</div>
+           <div class="pr-meta">${fmtDate(lastPurchase.purchase_date)} · ${lastPurchase.quantity} pcs</div>
          </div>
          <div style="text-align:right">
            <div class="pr-price">${fmtMoney(lastPurchase.unit_price) || ""}</div>
@@ -577,6 +604,26 @@ function renderCigarModal(c) {
 
     <div class="md-section">
       <div class="tasting-summary-row">
+        <h4>Humidor</h4>
+        <span class="tasting-count">${unassignedCount} unassigned</span>
+      </div>
+      ${allocations.length > 0
+        ? `<div class="tasting-log">${allocations.map(allocationLineHtml).join("")}</div>`
+        : `<p class="pr-meta">Not assigned to a humidor yet.</p>`}
+      <form id="allocation-form" class="ledger-form" style="margin-top:10px">
+        <div class="field-row purchase-row-compact">
+          <label class="field"><span>Humidor</span><select name="humidor_id" required>${humidorOptionsHtml()}</select></label>
+          <label class="field field-sm"><span>Qty *</span><input name="quantity" type="number" min="1" required /></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Set</button>
+          <span class="form-status" data-status-for="allocation"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="md-section">
+      <div class="tasting-summary-row">
         <h4>Purchases</h4>
         <span class="tasting-count">${c.total_bought} bought</span>
       </div>
@@ -587,7 +634,6 @@ function renderCigarModal(c) {
           <label class="field"><span>Source</span><input name="source" placeholder="Where did you purchase?" /></label>
           <label class="field field-sm"><span>Qty *</span><input name="quantity" type="number" min="1" required /></label>
           <label class="field field-sm"><span>Price ($)</span><input name="unit_price" type="number" min="0" step="0.01" /></label>
-          <label class="field field-sm"><span>Humidor</span><select name="humidor_id">${humidorOptionsHtml()}</select></label>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="purchase-submit-btn">Save</button>
@@ -612,7 +658,7 @@ function renderCigarModal(c) {
         <div class="field-row">
           <label class="field field-sm"><span>Date</span><input name="tasting_date" type="date" value="${todayISO()}" /></label>
           <label class="field"><span>Location</span><input name="location" placeholder="Where did you smoke?" /></label>
-          <label class="field field-sm"><span>From humidor</span><select name="humidor_id">${humidorOptionsHtml()}</select></label>
+          ${tastingHumidorFieldHtml(c)}
         </div>
         <div class="form-actions">
           <button type="submit" class="btn-primary" id="tasting-submit-btn">Log tasting</button>
@@ -705,6 +751,44 @@ function wireModalForms(cigarId) {
     } catch (err) {
       status.textContent = err.message; status.className = "form-status err";
     }
+  });
+
+  // --- Humidor: allocation set/remove ---
+  const allocationForm = document.getElementById("allocation-form");
+  allocationForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const status = allocationForm.querySelector('[data-status-for="allocation"]');
+    const data = Object.fromEntries(new FormData(allocationForm));
+    if (!data.humidor_id) {
+      status.textContent = "Pick a humidor"; status.className = "form-status err";
+      return;
+    }
+    try {
+      await apiFetch(`/api/cigars/${cigarId}/allocations/${data.humidor_id}`, {
+        method: "PUT",
+        body: JSON.stringify({ quantity: Number(data.quantity) }),
+      });
+      status.textContent = "Saved ✓"; status.className = "form-status ok";
+      const fresh = await apiFetch(`/api/cigars/${cigarId}`);
+      renderCigarModal(fresh);
+      loadInventory();
+    } catch (err) {
+      status.textContent = err.message; status.className = "form-status err";
+    }
+  });
+
+  modalBody.querySelectorAll(".allocation-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Remove this humidor assignment? These cigars will become unassigned again.")) return;
+      try {
+        await apiFetch(`/api/cigars/${cigarId}/allocations/${btn.dataset.humidorId}`, { method: "DELETE" });
+        const fresh = await apiFetch(`/api/cigars/${cigarId}`);
+        renderCigarModal(fresh);
+        loadInventory();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
   });
 
   // --- Purchases: add/edit/delete ---
