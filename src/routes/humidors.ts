@@ -82,4 +82,16 @@ router.get(
   })
 );
 
+// DELETE /api/humidors/:id — cascade ile sensor_readings geçmişi de silinir
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const result = await pool.query(`DELETE FROM humidors WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Humidor bulunamadı" });
+    }
+    res.status(204).send();
+  })
+);
+
 export default router;
