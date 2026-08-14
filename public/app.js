@@ -805,7 +805,7 @@ function wireModalForms(cigarId) {
       status.textContent = "Saved ✓"; status.className = "form-status ok";
       const fresh = await apiFetch(`/api/cigars/${cigarId}`);
       renderCigarModal(fresh);
-      loadInventory();
+      loadInventory(); loadHumidors();
     } catch (err) {
       status.textContent = err.message; status.className = "form-status err";
     }
@@ -818,7 +818,7 @@ function wireModalForms(cigarId) {
         await apiFetch(`/api/cigars/${cigarId}/allocations/${btn.dataset.humidorId}`, { method: "DELETE" });
         const fresh = await apiFetch(`/api/cigars/${cigarId}`);
         renderCigarModal(fresh);
-        loadInventory();
+        loadInventory(); loadHumidors();
       } catch (err) {
         alert(err.message);
       }
@@ -932,7 +932,7 @@ function wireModalForms(cigarId) {
       editingTastingId = null;
       const fresh = await apiFetch(`/api/cigars/${cigarId}`);
       renderCigarModal(fresh);
-      loadInventory(); loadStats();
+      loadInventory(); loadStats(); loadHumidors();
     } catch (err) {
       status.textContent = err.message; status.className = "form-status err";
     }
@@ -960,7 +960,7 @@ function wireModalForms(cigarId) {
         await apiFetch(`/api/tastings/${btn.dataset.id}`, { method: "DELETE" });
         const fresh = await apiFetch(`/api/cigars/${cigarId}`);
         renderCigarModal(fresh);
-        loadInventory(); loadStats();
+        loadInventory(); loadStats(); loadHumidors();
       } catch (err) {
         alert(err.message);
       }
@@ -974,7 +974,7 @@ function wireModalForms(cigarId) {
     try {
       await apiFetch(`/api/cigars/${cigarId}`, { method: "DELETE" });
       closeModal();
-      loadInventory(); loadStats();
+      loadInventory(); loadStats(); loadHumidors();
     } catch (err) {
       const status = document.querySelector('[data-status-for="delete"]');
       if (status) { status.textContent = err.message; status.className = "form-status err"; }
@@ -1377,7 +1377,7 @@ async function openHumidorDetail(h) {
           body: JSON.stringify({ quantity: newVal }),
         });
         openHumidorDetail(h);
-        loadInventory();
+        loadInventory(); loadHumidors();
       } catch (err) {
         alert(err.message);
         input.value = original;
@@ -1396,7 +1396,7 @@ async function openHumidorDetail(h) {
       try {
         await apiFetch(`/api/cigars/${line.dataset.cigarId}/allocations/${line.dataset.humidorId}`, { method: "DELETE" });
         openHumidorDetail(h);
-        loadInventory();
+        loadInventory(); loadHumidors();
       } catch (err) {
         alert(err.message);
       }
