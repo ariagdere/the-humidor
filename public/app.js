@@ -1027,22 +1027,25 @@ glossaryForm.addEventListener("submit", async (e) => {
 });
 
 // --- Sensors / Humidors ------------------------------------------------
+let editingHumidorId = null;
+let humidorsCache = [];
+
 async function loadHumidors() {
   const grid = document.getElementById("humidor-grid");
   const empty = document.getElementById("humidor-empty");
   grid.innerHTML = `<p class="loading">Loading…</p>`;
 
-  const humidors = await apiFetch("/api/humidors");
-  renderDashboardSensors(humidors);
+  humidorsCache = await apiFetch("/api/humidors");
+  renderDashboardSensors(humidorsCache);
   grid.innerHTML = "";
 
-  if (humidors.length === 0) {
+  if (humidorsCache.length === 0) {
     empty.hidden = false;
     return;
   }
   empty.hidden = true;
 
-  for (const h of humidors) {
+  for (const h of humidorsCache) {
     const card = document.createElement("div");
     card.className = "humidor-card";
     const hasReading = h.latest_reading_time != null;
@@ -1056,9 +1059,51 @@ async function loadHumidors() {
            </div>`
         : `<p class="humidor-waiting">${h.mac_address ? "Waiting for data…" : "No MAC address yet — readings will start once the device is set up"}</p>`}
       ${h.mac_address ? `<div class="humidor-mac">${esc(h.mac_address)}</div>` : ""}
+      <div class="humidor-card-actions">
+        <button type="button" class="link-btn humidor-edit-btn" data-id="${h.id}">Edit</button>
+        <button type="button" class="link-btn danger humidor-delete-btn" data-id="${h.id}">Delete</button>
+      </div>
     `;
     grid.appendChild(card);
   }
+
+  grid.querySelectorAll(".humidor-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const h = humidorsCache.find((x) => x.id === Number(btn.dataset.id));
+      if (h) startEditHumidor(h);
+    });
+  });
+
+  grid.querySelectorAll(".humidor-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this humidor? Its sensor reading history will be deleted too. This cannot be undone.")) return;
+      try {
+        await apiFetch(`/api/humidors/${btn.dataset.id}`, { method: "DELETE" });
+        if (editingHumidorId === Number(btn.dataset.id)) cancelEditHumidor();
+        await loadHumidors();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+function startEditHumidor(h) {
+  editingHumidorId = h.id;
+  document.getElementById("humidor-form-details").open = true;
+  humidorForm.querySelector('[name="name"]').value = h.name || "";
+  humidorForm.querySelector('[name="location_note"]').value = h.location_note || "";
+  humidorForm.querySelector('[name="mac_address"]').value = h.mac_address || "";
+  document.getElementById("humidor-submit-btn").textContent = "Update";
+  document.getElementById("humidor-cancel-edit").hidden = false;
+  document.getElementById("humidor-form-details").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function cancelEditHumidor() {
+  editingHumidorId = null;
+  humidorForm.reset();
+  document.getElementById("humidor-submit-btn").textContent = "Add";
+  document.getElementById("humidor-cancel-edit").hidden = true;
 }
 
 // Renders the compact, right-aligned sensor summary in the dashboard's stat row.
@@ -1088,14 +1133,22 @@ humidorForm.addEventListener("submit", async (e) => {
   const data = Object.fromEntries(new FormData(humidorForm));
   Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
   try {
-    await apiFetch("/api/humidors", { method: "POST", body: JSON.stringify(data) });
-    status.textContent = "Added ✓"; status.className = "form-status ok";
-    humidorForm.reset();
+    if (editingHumidorId) {
+      await apiFetch(`/api/humidors/${editingHumidorId}`, { method: "PUT", body: JSON.stringify(data) });
+      status.textContent = "Updated ✓";
+    } else {
+      await apiFetch("/api/humidors", { method: "POST", body: JSON.stringify(data) });
+      status.textContent = "Added ✓";
+    }
+    status.className = "form-status ok";
+    cancelEditHumidor();
     await loadHumidors();
   } catch (err) {
     status.textContent = err.message; status.className = "form-status err";
   }
 });
+
+document.getElementById("humidor-cancel-edit").addEventListener("click", cancelEditHumidor);
 
 // --- Back to top -------------------------------------------------------
 const backToTopBtn = document.getElementById("back-to-top");
