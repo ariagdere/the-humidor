@@ -285,7 +285,7 @@ async function openCigarModal(id) {
 
 const TASTING_FIELDS = ["tasting_date", "location"];
 const PURCHASE_FIELDS = ["source", "purchase_date", "quantity", "unit_price", "box_code", "reference_url"];
-const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes"];
+const RATING_FIELDS = ["draw_score", "burn_score", "construction_score", "finish_score", "overall_score", "strength_experienced", "scoring_notes", "duration_minutes"];
 const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"];
 
 // Sertlik seçimini de wrapper/origin ile GÖRSEL OLARAK AYNI özel dropdown ile
@@ -371,6 +371,7 @@ function ratingFactsHtml(c) {
     ["Finish", c.finish_score ? `${c.finish_score}/5` : null],
     ["Overall", c.overall_score ? `${c.overall_score}/5` : null],
     ["Strength felt", c.strength_experienced ? strengthLabel(c.strength_experienced) : null],
+    ["Duration", c.duration_minutes ? `${c.duration_minutes} min` : null],
   ].filter(([, v]) => v);
   return rows.map(([l, v]) => `<div><span class="md-fact-label">${l}:</span> ${esc(v)}</div>`).join("");
 }
@@ -399,7 +400,7 @@ function renderCigarModal(c) {
     factLineHtml("Ring gauge", c.ring_gauge, null),
   ].filter(Boolean);
 
-  const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced;
+  const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced || c.duration_minutes;
 
   const lastPurchase = c.purchases[0];
   const lastPurchaseHtml = lastPurchase
@@ -499,6 +500,7 @@ function renderCigarModal(c) {
             <label class="field"><span>Finish (1-5)</span><input name="finish_score" type="number" min="1" max="5" value="${c.finish_score ?? ""}" /></label>
             <label class="field"><span>Overall (1-5)</span><input name="overall_score" type="number" min="1" max="5" value="${c.overall_score ?? ""}" /></label>
             <label class="field"><span>Strength felt</span>${strengthSelectHtml("strength_experienced", c.strength_experienced)}</label>
+            <label class="field"><span>Duration (min)</span><input name="duration_minutes" type="number" min="0" value="${c.duration_minutes ?? ""}" /></label>
           </div>
           <label class="field"><span>Notes</span><textarea name="scoring_notes" rows="2">${esc(c.scoring_notes || "")}</textarea></label>
           <div class="form-actions">
