@@ -22,11 +22,12 @@ router.get(
              c.wrapper, c.origin, c.strength, c.flavor_profile, c.photo_url, c.notes,
              c.created_at, c.updated_at, c.draw_score, c.burn_score, c.construction_score,
              c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes, c.duration_minutes,
+             c.is_favorite,
              (c.photo_data IS NOT NULL) AS has_photo,
              s.total_bought, s.total_smoked, s.quantity_remaining
       FROM cigars c
       JOIN cigars_with_stock s ON s.id = c.id
-      ORDER BY c.brand, c.line NULLS LAST, c.vitola
+      ORDER BY c.is_favorite DESC, c.brand, c.line NULLS LAST, c.vitola
     `);
     res.json(result.rows);
   })
@@ -46,6 +47,7 @@ router.get(
               c.wrapper, c.origin, c.strength, c.flavor_profile, c.photo_url, c.notes,
               c.created_at, c.updated_at, c.draw_score, c.burn_score, c.construction_score,
               c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes, c.duration_minutes,
+              c.is_favorite,
               (c.photo_data IS NOT NULL) AS has_photo,
               s.total_bought, s.total_smoked, s.quantity_remaining,
         COALESCE(
@@ -151,6 +153,7 @@ const EDITABLE_CIGAR_FIELDS = [
   "strength_experienced",
   "scoring_notes",
   "duration_minutes",
+  "is_favorite",
 ];
 
 router.put(
@@ -249,7 +252,7 @@ router.post(
   "/:id/purchases",
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { source, purchase_date, quantity, unit_price, box_code, reference_url } = req.body;
+    const { source, purchase_date, quantity, unit_price, box_code, reference_url, humidor_id } = req.body;
 
     if (!quantity || Number(quantity) <= 0) {
       return res.status(400).json({ error: "quantity zorunlu ve 0'dan büyük olmalı" });
@@ -261,10 +264,10 @@ router.post(
     }
 
     const result = await pool.query(
-      `INSERT INTO purchases (cigar_id, source, purchase_date, quantity, unit_price, box_code, reference_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO purchases (cigar_id, source, purchase_date, quantity, unit_price, box_code, reference_url, humidor_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
-      [id, source ?? null, purchase_date ?? null, quantity, unit_price ?? null, box_code ?? null, reference_url ?? null]
+      [id, source ?? null, purchase_date ?? null, quantity, unit_price ?? null, box_code ?? null, reference_url ?? null, humidor_id ?? null]
     );
     res.status(201).json(result.rows[0]);
   })
@@ -289,7 +292,7 @@ router.post(
   "/:id/tastings",
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { tasting_date, location } = req.body;
+    const { tasting_date, location, humidor_id } = req.body;
 
     const cigarExists = await pool.query(`SELECT id FROM cigars WHERE id = $1`, [id]);
     if (cigarExists.rows.length === 0) {
@@ -297,10 +300,10 @@ router.post(
     }
 
     const result = await pool.query(
-      `INSERT INTO tastings (cigar_id, tasting_date, location)
-       VALUES ($1, COALESCE($2, CURRENT_DATE), $3)
+      `INSERT INTO tastings (cigar_id, tasting_date, location, humidor_id)
+       VALUES ($1, COALESCE($2, CURRENT_DATE), $3, $4)
        RETURNING *`,
-      [id, tasting_date ?? null, location ?? null]
+      [id, tasting_date ?? null, location ?? null, humidor_id ?? null]
     );
     res.status(201).json(result.rows[0]);
   })
