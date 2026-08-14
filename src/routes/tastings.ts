@@ -32,14 +32,28 @@ router.put(
   })
 );
 
-// DELETE /api/tastings/:id
+// DELETE /api/tastings/:id — silindiğinde, eğer belirli bir humidordan
+// içildiği işaretliyse o humidor'un dağıtımına 1 geri ekliyoruz (tersine çevirme).
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    const result = await pool.query(`DELETE FROM tastings WHERE id = $1 RETURNING id`, [req.params.id]);
-    if (result.rows.length === 0) {
+    const existing = await pool.query(`SELECT cigar_id, humidor_id FROM tastings WHERE id = $1`, [req.params.id]);
+    if (existing.rows.length === 0) {
       return res.status(404).json({ error: "Tadım bulunamadı" });
     }
+
+    const result = await pool.query(`DELETE FROM tastings WHERE id = $1 RETURNING id`, [req.params.id]);
+
+    const { cigar_id, humidor_id } = existing.rows[0];
+    if (humidor_id) {
+      await pool.query(
+        `INSERT INTO cigar_humidor_allocations (cigar_id, humidor_id, quantity)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (cigar_id, humidor_id) DO UPDATE SET quantity = cigar_humidor_allocations.quantity + 1, updated_at = now()`,
+        [cigar_id, humidor_id]
+      );
+    }
+
     res.status(204).send();
   })
 );
