@@ -348,6 +348,29 @@ router.put(
       return res.json({ cigar_id: Number(id), humidor_id: Number(humidorId), quantity: 0, removed: true });
     }
 
+    // Elde kalan stoktan fazlasını dağıtamazsın. Bu humidor'un ESKİ değeri hariç
+    // diğer tüm humidorlardaki toplam + yeni değer, elimizdeki genel kalan adedi
+    // (cigars_with_stock) geçmemeli.
+    const stockResult = await pool.query(`SELECT quantity_remaining FROM cigars_with_stock WHERE id = $1`, [id]);
+    if (stockResult.rows.length === 0) {
+      return res.status(404).json({ error: "Puro bulunamadı" });
+    }
+    const remaining = Number(stockResult.rows[0].quantity_remaining);
+
+    const otherAllocations = await pool.query(
+      `SELECT COALESCE(SUM(quantity), 0) AS total FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id != $2`,
+      [id, humidorId]
+    );
+    const maxAllowed = remaining - Number(otherAllocations.rows[0].total);
+
+    if (quantity > maxAllowed) {
+      return res.status(400).json({
+        error: maxAllowed > 0
+          ? `En fazla ${maxAllowed} adet dağıtılabilir (toplam ${remaining} kalan, diğer humidorlara zaten ${remaining - maxAllowed} atanmış).`
+          : `Elindeki tüm ${remaining} adet zaten başka humidorlara atanmış.`,
+      });
+    }
+
     const result = await pool.query(
       `INSERT INTO cigar_humidor_allocations (cigar_id, humidor_id, quantity)
        VALUES ($1, $2, $3)
