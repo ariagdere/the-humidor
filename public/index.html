@@ -87,6 +87,7 @@
       </div>
 
       <div id="inventory-list" class="cigar-list"></div>
+      <button type="button" id="inv-load-more" class="btn-secondary inv-load-more" hidden>Load 20 more</button>
       <p id="inventory-empty" class="empty-state" hidden>
         No cigars yet. <button class="link-btn" data-view="add">Add your first one →</button>
       </p>
@@ -288,6 +289,11 @@
     </div>
   </div>
 </div>
+
+<!-- BACK TO TOP -->
+<button type="button" id="back-to-top" class="back-to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
 
 <script>window.__HUMIDOR_API_KEY__ = "__API_KEY__";</script>
 <script src="/app.js"></script>
