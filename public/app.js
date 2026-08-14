@@ -49,6 +49,18 @@ function cap(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// /photos/cigars/:id 1 haftalık uzun cache ile dönüyor (bkz. photosRoute.ts) --
+// bu doğru, ANCAK URL sabit kalırsa foto URL'den/dosyadan güncellendiğinde
+// tarayıcı eski görseli hâlâ cache'ten gösterir. c.updated_at her foto
+// değişiminde değiştiği için (hem PUT /:id hem PUT /:id/photo bunu set ediyor)
+// query param olarak eklemek URL'i "versiyonluyor" -- foto değişince URL de
+// değişip tazeyi çeker, değişmeyen fotoğraflar hâlâ tam cache avantajını korur.
+function photoUrl(c) {
+  if (!c.has_photo) return null;
+  const v = Date.parse(c.updated_at) || 0;
+  return `/photos/cigars/${c.id}?v=${v}`;
+}
+
 function fmtDate(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -211,7 +223,7 @@ function renderInventoryList(cigars, filtersActive) {
     row.addEventListener("click", () => openCigarModal(c.id));
 
     const photoHtml = c.has_photo
-      ? `<img class="cigar-row-photo" src="/photos/cigars/${c.id}" alt="" />`
+      ? `<img class="cigar-row-photo" src="${photoUrl(c)}" alt="" />`
       : `<div class="cigar-row-photo-placeholder">${esc((c.brand || "?").charAt(0))}</div>`;
 
     const title = [c.brand, c.line].filter(Boolean).join(" ");
@@ -431,7 +443,7 @@ function renderCigarModal(c) {
         <h3 class="md-title">${esc(title)}</h3>
         <p class="md-sub">${esc(c.vitola) || "&nbsp;"}</p>
       </div>
-      ${c.has_photo ? `<img class="md-photo" src="/photos/cigars/${c.id}" alt="" id="md-photo-img" />` : ""}
+      ${c.has_photo ? `<img class="md-photo" src="${photoUrl(c)}" alt="" id="md-photo-img" />` : ""}
     </div>
     <div class="md-stock-row">
       <p class="md-stock">${remaining} left &nbsp;·&nbsp; ${c.total_bought} bought, ${c.total_smoked} smoked</p>
