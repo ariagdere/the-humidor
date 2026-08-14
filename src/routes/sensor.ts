@@ -15,7 +15,7 @@ router.post(
       return res.status(400).json({ error: "mac_address, temperature_c ve humidity_pct zorunlu" });
     }
 
-    const humidor = await pool.query(`SELECT id FROM humidors WHERE mac_address = $1`, [mac_address]);
+    const humidor = await pool.query(`SELECT id FROM humidors WHERE UPPER(mac_address) = UPPER($1)`, [mac_address]);
     if (humidor.rows.length === 0) {
       // Bilinmeyen bir MAC geldiğinde sessizce yutmak yerine açıkça hata dönüyoruz —
       // gateway konfigürasyonundaki bir yazım hatasını hemen fark etmek için.
