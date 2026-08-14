@@ -327,7 +327,13 @@ async function openCigarModal(id) {
     humidorChartInstance.destroy();
     humidorChartInstance = null;
   }
-  const c = await apiFetch(`/api/cigars/${id}`);
+  let c;
+  try {
+    c = await apiFetch(`/api/cigars/${id}`);
+  } catch (err) {
+    modalBody.innerHTML = `<p class="pr-meta" style="color:var(--error)">Couldn't load this cigar: ${esc(err.message)}</p>`;
+    return;
+  }
   editingTastingId = null;
   editingPurchaseId = null;
   renderCigarModal(c);
@@ -1304,10 +1310,19 @@ async function openHumidorDetail(h) {
   modal.hidden = false;
   modalBody.innerHTML = `<p class="modal-loading">Loading…</p>`;
 
-  const [cigarsHere, readings] = await Promise.all([
-    apiFetch(`/api/humidors/${h.id}/cigars`),
-    apiFetch(`/api/humidors/${h.id}/readings?limit=100`),
-  ]);
+  let cigarsHere, readings;
+  try {
+    [cigarsHere, readings] = await Promise.all([
+      apiFetch(`/api/humidors/${h.id}/cigars`),
+      apiFetch(`/api/humidors/${h.id}/readings?limit=100`),
+    ]);
+  } catch (err) {
+    modalBody.innerHTML = `
+      <h3 class="chart-modal-title">${esc(h.name)}</h3>
+      <p class="pr-meta" style="color:var(--error)">Couldn't load this humidor's details: ${esc(err.message)}</p>
+    `;
+    return;
+  }
 
   const cigarsHtml = cigarsHere.length > 0
     ? `<div class="humidor-cigar-list">${cigarsHere.map(humidorCigarLineHtml).join("")}</div>`
