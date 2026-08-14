@@ -441,6 +441,7 @@ function renderCigarModal(c) {
         </div>
         <label class="field"><span>Expected flavor profile</span><textarea name="flavor_profile" rows="2">${esc(c.flavor_profile || "")}</textarea></label>
         <label class="field"><span>Photo URL</span><input name="photo_url" type="url" value="${esc(c.photo_url || "")}" /></label>
+        <label class="field"><span>Or upload a photo</span><input type="file" id="profile-photo-file" accept="image/*" /></label>
         <label class="field"><span>Notes</span><textarea name="notes" rows="2">${esc(c.notes || "")}</textarea></label>
         <div class="form-actions">
           <button type="submit" class="btn-primary">Save profile</button>
@@ -554,9 +555,26 @@ function wireModalForms(cigarId) {
     const status = profileForm.querySelector('[data-status-for="profile"]');
     const data = Object.fromEntries(new FormData(profileForm));
     Object.keys(data).forEach((k) => { if (data[k] === "") delete data[k]; });
+    // photo_url alanı da gönderiliyorsa PUT /api/cigars/:id zaten onu indirip
+    // photo_data'yı DEĞİŞTİRİYOR (bkz. cigars.ts). Elle dosya seçildiyse aynı
+    // "yerine geçme" davranışını /photo endpoint'iyle ayrıca yapıyoruz.
+    const photoFile = document.getElementById("profile-photo-file")?.files[0];
     try {
       await apiFetch(`/api/cigars/${cigarId}`, { method: "PUT", body: JSON.stringify(data) });
-      status.textContent = "Saved ✓"; status.className = "form-status ok";
+      let photoWarning = "";
+      if (photoFile) {
+        try {
+          await apiFetch(`/api/cigars/${cigarId}/photo`, {
+            method: "PUT",
+            body: photoFile,
+            headers: { "Content-Type": photoFile.type || "application/octet-stream" },
+          });
+        } catch (photoErr) {
+          photoWarning = ` (photo upload failed: ${photoErr.message})`;
+        }
+      }
+      status.textContent = `Saved ✓${photoWarning}`;
+      status.className = photoWarning ? "form-status err" : "form-status ok";
       const fresh = await apiFetch(`/api/cigars/${cigarId}`);
       renderCigarModal(fresh);
       loadInventory(); loadStats();
@@ -839,8 +857,27 @@ cigarForm.addEventListener("submit", async (e) => {
 
   try {
     const created = await apiFetch("/api/cigars", { method: "POST", body: JSON.stringify(data) });
-    status.textContent = "Cigar saved ✓";
-    status.className = "form-status ok";
+
+    // photo_url verildiyse sunucu zaten indirmeyi denedi. Elle bir dosya da
+    // seçilmişse (link çalışmadıysa yedek olarak, ya da baştan tercih
+    // edildiyse) onu ayrıca yüklüyoruz — cigars.ts'teki UPDATE tek satır
+    // olduğu için bu, indirilen fotoğrafın YERİNE geçer, ikisi birikmez.
+    const photoFile = document.getElementById("cigar-photo-file").files[0];
+    let photoWarning = "";
+    if (photoFile) {
+      try {
+        await apiFetch(`/api/cigars/${created.id}/photo`, {
+          method: "PUT",
+          body: photoFile,
+          headers: { "Content-Type": photoFile.type || "application/octet-stream" },
+        });
+      } catch (photoErr) {
+        photoWarning = ` (photo upload failed: ${photoErr.message})`;
+      }
+    }
+
+    status.textContent = `Cigar saved ✓${photoWarning}`;
+    status.className = photoWarning ? "form-status err" : "form-status ok";
     cigarForm.reset();
     document.getElementById("photo-preview").hidden = true;
     document.getElementById("extract-url").value = "";
