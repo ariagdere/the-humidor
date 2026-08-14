@@ -21,7 +21,8 @@ router.get(
       SELECT h.*,
              latest.temperature_c AS latest_temperature_c,
              latest.humidity_pct AS latest_humidity_pct,
-             latest.reading_time AS latest_reading_time
+             latest.reading_time AS latest_reading_time,
+             COALESCE(stored.total, 0)::int AS cigar_count
       FROM humidors h
       LEFT JOIN LATERAL (
         SELECT temperature_c, humidity_pct, reading_time
@@ -30,6 +31,9 @@ router.get(
         ORDER BY sr.reading_time DESC
         LIMIT 1
       ) latest ON true
+      LEFT JOIN (
+        SELECT humidor_id, SUM(quantity) AS total FROM cigar_humidor_allocations GROUP BY humidor_id
+      ) stored ON stored.humidor_id = h.id
       ORDER BY h.name
     `);
     res.json(result.rows);
