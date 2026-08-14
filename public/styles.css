@@ -267,6 +267,34 @@ button { font-family: var(--font-body); cursor: pointer; }
 .form-status.ok { color: var(--leaf); font-weight: 700; }
 .form-status.err { color: var(--error); font-weight: 700; }
 
+.inv-load-more { display: block; margin: 18px auto 0; }
+.inv-load-more:hover { background: var(--brass-soft); }
+
+/* Aşağı scroll edince beliren, tepeye dönüş butonu. Sabit konumlu, sayfaya
+   göre değil viewport'a göre — hangi view açık olursa olsun aynı yerde durur. */
+.back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--cedar);
+  color: #fff;
+  border: none;
+  box-shadow: var(--shadow-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s, background 0.15s;
+}
+.back-to-top.visible { opacity: 1; visibility: visible; transform: translateY(0); }
+.back-to-top:hover { background: var(--cedar-hover); }
+
 /* Glossary */
 .glossary-cat { margin-bottom: 30px; }
 .glossary-cat h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brass); margin-bottom: 12px; }
@@ -449,6 +477,7 @@ button { font-family: var(--font-body); cursor: pointer; }
   .cigar-row-sub { max-width: 140px; }
   .inventory-toolbar input[type="search"] { flex-basis: 100%; }
   .inventory-toolbar select { flex: 1 1 auto; }
+  .back-to-top { right: 16px; bottom: 16px; width: 42px; height: 42px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
