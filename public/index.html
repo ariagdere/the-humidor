@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- iOS Safari sayı ağırlıklı metinleri (MAC adresi, fiyat vb.) otomatik
+     "telefon numarası" sanıp kendi mavi-altı-çizili linkine çeviriyor --
+     bu, uygulamanın hiç link kullanmamasına rağmen mobilde "mavi link"
+     görünmesinin sebebiydi. Kapatıyoruz. -->
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
 <title>The Humidor</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
