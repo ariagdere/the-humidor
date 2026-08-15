@@ -475,12 +475,49 @@ button { font-family: var(--font-body); cursor: pointer; }
   .rating-grid { grid-template-columns: 1fr 1fr; }
   .dash-totals { gap: 24px; }
   .dash-num { font-size: 28px; }
-  .cigar-row { gap: 12px; }
-  .cigar-row-nums { gap: 12px; }
+  .cigar-row { gap: 12px; flex-wrap: wrap; }
+  .cigar-row-nums { gap: 12px; flex-basis: 100%; margin-top: 8px; justify-content: flex-start; }
   .cigar-row-sub { max-width: 140px; }
   .inventory-toolbar input[type="search"] { flex-basis: 100%; }
   .inventory-toolbar select { flex: 1 1 auto; }
   .back-to-top { right: 16px; bottom: 16px; width: 42px; height: 42px; }
+
+  /* Dashboard sensör okumaları masaüstünde sağa yaslanıyor (margin-left:auto);
+     satır kırıldığında bu tuhaf/yamuk görünüyordu -- kendi tam genişlik
+     satırına düşsün, sola hizalansın. */
+  .dash-sensors { margin-left: 0; width: 100%; margin-top: 10px; }
+  .dash-sensor { align-items: flex-start; }
+
+  /* Modal kenar boşlukları masaüstü için düşünülmüştü, dar ekranda içeriği
+     gereksiz sıkıştırıyordu. */
+  .modal-backdrop { padding: 16px 10px; }
+  .modal-card { padding: 20px 16px; }
+  .modal-close { top: 10px; right: 10px; width: 38px; height: 38px; }
+
+  /* Bu iki satır hiç sarmıyordu, dar ekranda taşma/sıkışma riski vardı. */
+  .extract-row { flex-wrap: wrap; }
+  .extract-row input { flex-basis: 100%; }
+  .humidor-detail-summary { flex-wrap: wrap; row-gap: 14px; }
+
+  /* Grafik dar ekranda aynı yükseklikte kalınca orantısız uzun görünüyordu. */
+  .chart-wrap { height: 220px; }
+
+  /* (ⓘ) ipucu sağ kenara yakın bir puroda taşıp ekran dışına çıkabiliyordu --
+     tetikleyicinin altında ortalanacak şekilde değiştirdik. */
+  .fact-info-tip { left: 50%; right: auto; transform: translateX(-50%); width: 190px; }
+
+  /* KRİTİK: iOS Safari, font-size 16px'in altındaki bir input'a dokunulduğunda
+     sayfayı otomatik zoom'luyor -- her form alanına her dokunuşta ekran aniden
+     büyüyordu. Görsel tasarımı masaüstünde değiştirmeden mobilde 16px'e çıkarıyoruz. */
+  .field input, .field select, .field textarea,
+  .inventory-toolbar input[type="search"], .inventory-toolbar select,
+  .humidor-cigar-qty-input {
+    font-size: 16px;
+  }
+
+  /* Küçük daire butonlar masaüstünde fare için sorun değil ama parmakla
+     tıklaması zordu, dokunma alanını büyütüyoruz. */
+  .humidor-cigar-remove-btn { width: 32px; height: 32px; font-size: 18px; }
 }
 
 /* --- Favorite star ------------------------------------------------------ */
