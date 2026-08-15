@@ -413,10 +413,14 @@ function allocationLineHtml(a) {
 function tastingHumidorFieldHtml(c) {
   const allocations = c.humidor_allocations || [];
   if (allocations.length === 0) return "";
+  // Tek bir humidor'a atanmışsa, nereden içildiği zaten belirsiz değil --
+  // varsayılan olarak onu seçili getiriyoruz (yine de "—" seçilip izlenmeden
+  // bırakılabilir). Birden fazla humidor varsa belirsizlik gerçek, boş kalır.
+  const defaultId = allocations.length === 1 ? String(allocations[0].humidor_id) : "";
   const options = allocations
-    .map((a) => `<option value="${a.humidor_id}">${esc(a.humidor_name)} (${a.quantity})</option>`)
+    .map((a) => `<option value="${a.humidor_id}"${String(a.humidor_id) === defaultId ? " selected" : ""}>${esc(a.humidor_name)} (${a.quantity})</option>`)
     .join("");
-  return `<label class="field field-sm"><span>From humidor</span><select name="humidor_id"><option value="">—</option>${options}</select></label>`;
+  return `<label class="field field-sm"><span>From humidor</span><select name="humidor_id"><option value=""${defaultId === "" ? " selected" : ""}>—</option>${options}</select></label>`;
 }
 
 function tastingLineHtml(t) {
@@ -484,7 +488,11 @@ function renderCigarModal(c) {
   currentCigarData = c;
 
   const allocations = c.humidor_allocations || [];
-  const unassignedCount = remaining - allocations.reduce((sum, a) => sum + Number(a.quantity), 0);
+  // Math.max(0, ...): humidor'dan çıkarılmadan tadım kaydedilirse (izlenmeyen
+  // tadım) veri geçici olarak tutarsız kalabiliyor -- kafa karıştıran negatif
+  // sayı yerine 0 gösteriyoruz. Gerçek düzeltme humidor'un kendi adedini
+  // elle indirmek (bkz. miktar input'u).
+  const unassignedCount = Math.max(0, remaining - allocations.reduce((sum, a) => sum + Number(a.quantity), 0));
 
   const title = [c.brand, c.line].filter(Boolean).join(" ");
 
