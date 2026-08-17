@@ -76,7 +76,7 @@ Known glossary terms — if one matches, use that exact term; otherwise write it
 
 For strength, use ONLY one of these five values: mild, mild-medium, medium, medium-full, full.
 
-For anything not on the page (especially flavor_profile and photo_url), use the web_search tool with this product's brand/line/vitola to fill the gap. For photo_url, prefer a roughly SQUARE product photo if one is available — we don't crop or resize it on our end, so an already-square image looks best.
+For anything not on the page (especially strength, flavor_profile, and photo_url), use the web_search tool with this product's brand/line/vitola to fill the gap. Strength in particular is often described in marketing copy or reviews rather than a clearly labeled field on the page itself — if you don't see it stated directly, search for how this cigar is typically rated (mild/medium/full) instead of leaving it blank. For photo_url, prefer a roughly SQUARE product photo if one is available — we don't crop or resize it on our end, so an already-square image looks best.
 
 Write all content in English regardless of the source page's language — this includes flavor_profile and confidence_notes.
 
