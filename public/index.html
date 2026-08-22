@@ -265,6 +265,10 @@
             <span>MAC address</span>
             <input name="mac_address" placeholder="Filled in once the device is set up — leave blank for now" />
           </label>
+          <div class="field-row">
+            <label class="field field-sm"><span>Temp offset (°C)</span><input name="temp_offset_c" type="number" step="0.1" placeholder="0" /></label>
+            <label class="field field-sm"><span>Humidity offset (%)</span><input name="humidity_offset_pct" type="number" step="0.1" placeholder="0" /></label>
+          </div>
           <div class="form-actions">
             <button type="submit" class="btn-primary" id="humidor-submit-btn">Add</button>
             <button type="button" id="humidor-cancel-edit" class="link-btn" hidden>Cancel edit</button>
