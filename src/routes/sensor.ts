@@ -15,7 +15,10 @@ router.post(
       return res.status(400).json({ error: "mac_address, temperature_c ve humidity_pct zorunlu" });
     }
 
-    const humidor = await pool.query(`SELECT id FROM humidors WHERE UPPER(mac_address) = UPPER($1)`, [mac_address]);
+    const humidor = await pool.query(
+      `SELECT id, temp_offset_c, humidity_offset_pct FROM humidors WHERE UPPER(mac_address) = UPPER($1)`,
+      [mac_address]
+    );
     if (humidor.rows.length === 0) {
       // Bilinmeyen bir MAC geldiğinde sessizce yutmak yerine açıkça hata dönüyoruz —
       // gateway konfigürasyonundaki bir yazım hatasını hemen fark etmek için.
@@ -24,11 +27,18 @@ router.post(
       });
     }
 
+    // Ham değere kalibrasyon ofsetini ekleyip öyle kaydediyoruz -- bu humidor'un
+    // sensörü diğerlerine göre sistematik olarak yüksek/düşük okuyorsa, ofset
+    // Edit Humidor formundan ayarlanabilir (bkz. migration notu).
+    const h = humidor.rows[0];
+    const adjustedTemp = Number(temperature_c) + Number(h.temp_offset_c);
+    const adjustedHumidity = Number(humidity_pct) + Number(h.humidity_offset_pct);
+
     const result = await pool.query(
       `INSERT INTO sensor_readings (humidor_id, temperature_c, humidity_pct, battery_pct)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [humidor.rows[0].id, temperature_c, humidity_pct, battery_pct ?? null]
+      [h.id, adjustedTemp, adjustedHumidity, battery_pct ?? null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -54,17 +64,24 @@ router.post(
 
       if (!mac || temp === undefined || hum === undefined) continue; // bu turda bu sensörden veri yok
 
-      const humidor = await pool.query(`SELECT id FROM humidors WHERE UPPER(mac_address) = UPPER($1)`, [mac]);
+      const humidor = await pool.query(
+        `SELECT id, temp_offset_c, humidity_offset_pct FROM humidors WHERE UPPER(mac_address) = UPPER($1)`,
+        [mac]
+      );
       if (humidor.rows.length === 0) {
         results.push({ mac, error: "tanımlı humidor yok" });
         continue;
       }
 
+      const h = humidor.rows[0];
+      const adjustedTemp = Number(temp) + Number(h.temp_offset_c);
+      const adjustedHumidity = Number(hum) + Number(h.humidity_offset_pct);
+
       const result = await pool.query(
         `INSERT INTO sensor_readings (humidor_id, temperature_c, humidity_pct, battery_pct)
          VALUES ($1, $2, $3, $4)
          RETURNING id`,
-        [humidor.rows[0].id, temp, hum, bat ?? null]
+        [h.id, adjustedTemp, adjustedHumidity, bat ?? null]
       );
       results.push({ mac, id: result.rows[0].id });
     }
