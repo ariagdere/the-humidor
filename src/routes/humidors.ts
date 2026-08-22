@@ -61,15 +61,24 @@ router.post(
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { name, mac_address, location_note } = req.body;
+    const { name, mac_address, location_note, temp_offset_c, humidity_offset_pct } = req.body;
     const result = await pool.query(
       `UPDATE humidors
        SET name = COALESCE($2, name),
            mac_address = COALESCE($3, mac_address),
-           location_note = COALESCE($4, location_note)
+           location_note = COALESCE($4, location_note),
+           temp_offset_c = COALESCE($5, temp_offset_c),
+           humidity_offset_pct = COALESCE($6, humidity_offset_pct)
        WHERE id = $1
        RETURNING *`,
-      [req.params.id, name ?? null, normalizeMac(mac_address), location_note ?? null]
+      [
+        req.params.id,
+        name ?? null,
+        normalizeMac(mac_address),
+        location_note ?? null,
+        temp_offset_c ?? null,
+        humidity_offset_pct ?? null,
+      ]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Humidor bulunamadı" });
