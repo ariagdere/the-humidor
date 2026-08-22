@@ -312,18 +312,31 @@ router.post(
       [id, tasting_date ?? null, location ?? null, humidor_id ?? null]
     );
 
-    // Belirli bir humidor'dan içildiyse, o humidor'un dağıtımından 1 düşüyoruz --
-    // 0'a inerse satırı tamamen siliyoruz (bkz. migration notu).
+    // Belirli bir humidor'dan içildiyse, o humidor'un dağıtımından 1 düşüyoruz.
+    // ÖNEMLİ: cigar_humidor_allocations.quantity üzerinde CHECK (quantity > 0)
+    // kısıtı var -- doğrudan "SET quantity = quantity - 1" ile 1'den 0'a UPDATE
+    // etmeye çalışmak bu kısıtı ihlal edip hata fırlatıyordu (satır hiç 0 değerle
+    // var olamıyor, UPDATE sırasında bile). Önce mevcut miktarı okuyup, 1 veya
+    // altındaysa satırı direkt siliyoruz, fazlaysa güvenle 1 azaltıyoruz.
     if (humidor_id) {
-      await pool.query(
-        `UPDATE cigar_humidor_allocations SET quantity = quantity - 1, updated_at = now()
-         WHERE cigar_id = $1 AND humidor_id = $2 AND quantity > 0`,
+      const alloc = await pool.query(
+        `SELECT quantity FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2`,
         [id, humidor_id]
       );
-      await pool.query(
-        `DELETE FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2 AND quantity <= 0`,
-        [id, humidor_id]
-      );
+      if (alloc.rows.length > 0) {
+        if (Number(alloc.rows[0].quantity) <= 1) {
+          await pool.query(
+            `DELETE FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2`,
+            [id, humidor_id]
+          );
+        } else {
+          await pool.query(
+            `UPDATE cigar_humidor_allocations SET quantity = quantity - 1, updated_at = now()
+             WHERE cigar_id = $1 AND humidor_id = $2`,
+            [id, humidor_id]
+          );
+        }
+      }
     }
 
     res.status(201).json(result.rows[0]);
