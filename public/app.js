@@ -1291,6 +1291,8 @@ function startEditHumidor(h) {
   humidorForm.querySelector('[name="name"]').value = h.name || "";
   humidorForm.querySelector('[name="location_note"]').value = h.location_note || "";
   humidorForm.querySelector('[name="mac_address"]').value = h.mac_address || "";
+  humidorForm.querySelector('[name="temp_offset_c"]').value = h.temp_offset_c ?? 0;
+  humidorForm.querySelector('[name="humidity_offset_pct"]').value = h.humidity_offset_pct ?? 0;
   document.getElementById("humidor-submit-btn").textContent = "Update";
   document.getElementById("humidor-cancel-edit").hidden = false;
   document.getElementById("humidor-form-details").scrollIntoView({ behavior: "smooth", block: "nearest" });
