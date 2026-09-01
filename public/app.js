@@ -474,6 +474,16 @@ function ratingFactsHtml(c) {
   return rows.map(([l, v]) => `<div><span class="md-fact-label">${l}:</span> ${esc(v)}</div>`).join("");
 }
 
+function pairingFactsHtml(c) {
+  const rows = [
+    ["Whiskey", c.pairing_whiskey],
+    ["Brandy / rum", c.pairing_brandy],
+    ["Coffee", c.pairing_coffee],
+    ["Soft drink / cocktail", c.pairing_drink],
+  ].filter(([, v]) => v);
+  return rows.map(([l, v]) => `<div><span class="md-fact-label">${l}:</span> ${esc(v)}</div>`).join("");
+}
+
 function strengthLabel(s) {
   return s.split("-").map(cap).join("-");
 }
@@ -506,6 +516,7 @@ function renderCigarModal(c) {
   ].filter(Boolean);
 
   const hasRating = c.overall_score || c.draw_score || c.burn_score || c.construction_score || c.finish_score || c.strength_experienced || c.duration_minutes;
+  const hasPairings = c.pairing_whiskey || c.pairing_brandy || c.pairing_coffee || c.pairing_drink;
 
   const lastPurchase = c.purchases[0];
   const lastPurchaseHtml = lastPurchase
@@ -576,6 +587,15 @@ function renderCigarModal(c) {
           </label>
         </div>
         <label class="field"><span>Expected flavor profile</span><textarea name="flavor_profile" rows="2">${esc(c.flavor_profile || "")}</textarea></label>
+        <p class="mini-label">Pairing suggestions</p>
+        <div class="field-row">
+          <label class="field field-sm"><span>Whiskey</span><input name="pairing_whiskey" type="text" value="${esc(c.pairing_whiskey || "")}" /></label>
+          <label class="field field-sm"><span>Brandy / rum</span><input name="pairing_brandy" type="text" value="${esc(c.pairing_brandy || "")}" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field field-sm"><span>Coffee</span><input name="pairing_coffee" type="text" value="${esc(c.pairing_coffee || "")}" /></label>
+          <label class="field field-sm"><span>Soft drink / cocktail</span><input name="pairing_drink" type="text" value="${esc(c.pairing_drink || "")}" /></label>
+        </div>
         <label class="field"><span>Photo URL</span><input name="photo_url" type="url" value="${esc(c.photo_url || "")}" /></label>
         <label class="field"><span>Or upload a photo</span><input type="file" id="profile-photo-file" accept="image/*" /></label>
         <label class="field"><span>Notes</span><textarea name="notes" rows="2">${esc(c.notes || "")}</textarea></label>
@@ -635,6 +655,17 @@ function renderCigarModal(c) {
           <span class="form-status" data-status-for="allocation"></span>
         </div>
       </form>
+    </div>
+
+    <div class="md-section">
+      <div class="tasting-summary-row">
+        <h4>Pairing</h4>
+        <button type="button" class="link-btn" id="generate-pairings-btn">${hasPairings ? "Regenerate with AI" : "Generate with AI"}</button>
+      </div>
+      ${hasPairings
+        ? `<div class="md-facts">${pairingFactsHtml(c)}</div>`
+        : `<p class="pr-meta">No pairing suggestions yet — add them above or generate with AI.</p>`}
+      <span class="form-status" data-status-for="pairings"></span>
     </div>
 
     <div class="md-section">
@@ -713,6 +744,23 @@ function wireModalForms(cigarId) {
     favStar.addEventListener("click", (e) => toggleFavorite(e, cigarId, favStar));
     favStar.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") toggleFavorite(e, cigarId, favStar);
+    });
+  }
+
+  const generatePairingsBtn = document.getElementById("generate-pairings-btn");
+  if (generatePairingsBtn) {
+    generatePairingsBtn.addEventListener("click", async () => {
+      const status = document.querySelector('[data-status-for="pairings"]');
+      generatePairingsBtn.disabled = true;
+      status.textContent = "Asking AI…"; status.className = "form-status";
+      try {
+        const fresh = await apiFetch(`/api/cigars/${cigarId}/pairings/generate`, { method: "POST" });
+        renderCigarModal(fresh);
+        loadInventory();
+      } catch (err) {
+        status.textContent = err.message; status.className = "form-status err";
+        generatePairingsBtn.disabled = false;
+      }
     });
   }
 
@@ -1125,7 +1173,7 @@ cigarForm.addEventListener("submit", async (e) => {
 });
 
 // --- Fill from link (AI-assisted) -------------------------------------------
-const CIGAR_FIELDS = ["brand", "line", "vitola", "length_mm", "ring_gauge", "wrapper", "origin", "strength", "flavor_profile"];
+const CIGAR_FIELDS = ["brand", "line", "vitola", "length_mm", "ring_gauge", "wrapper", "origin", "strength", "flavor_profile", "pairing_whiskey", "pairing_brandy", "pairing_coffee", "pairing_drink"];
 
 document.getElementById("extract-btn").addEventListener("click", async () => {
   const btn = document.getElementById("extract-btn");
@@ -1538,6 +1586,38 @@ function updateBackToTopVisibility() {
 window.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
 backToTopBtn.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+// --- Pairing backfill (mevcut purolar için toplu AI üretimi) -----------
+document.getElementById("backfill-pairings-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("backfill-pairings-btn");
+  const status = document.getElementById("backfill-pairings-status");
+  const missing = cigarsCache.filter(
+    (c) => !c.pairing_whiskey && !c.pairing_brandy && !c.pairing_coffee && !c.pairing_drink
+  );
+  if (missing.length === 0) {
+    status.textContent = "All cigars already have pairing suggestions.";
+    status.className = "form-status ok";
+    return;
+  }
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  for (const cigar of missing) {
+    status.textContent = `Generating ${done + failed + 1}/${missing.length}…`;
+    status.className = "form-status";
+    try {
+      await apiFetch(`/api/cigars/${cigar.id}/pairings/generate`, { method: "POST" });
+      done++;
+    } catch (err) {
+      failed++;
+    }
+  }
+  status.textContent = failed > 0
+    ? `Done: ${done} generated, ${failed} failed (try again for those).`
+    : `Done: ${done} cigar${done === 1 ? "" : "s"} updated.`;
+  status.className = failed > 0 ? "form-status err" : "form-status ok";
+  btn.disabled = false;
+  loadInventory();
 });
 
 // --- Startup -----------------------------------------------------------
