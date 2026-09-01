@@ -100,6 +100,10 @@ router.post(
       flavor_profile,
       photo_url,
       notes,
+      pairing_whiskey,
+      pairing_brandy,
+      pairing_coffee,
+      pairing_drink,
     } = req.body;
 
     if (!brand || typeof brand !== "string") {
@@ -114,8 +118,8 @@ router.post(
 
     const result = await pool.query(
       `INSERT INTO cigars
-        (brand, line, vitola, length_mm, ring_gauge, filler, binder, wrapper, origin, strength, flavor_profile, photo_url, notes, photo_data, photo_mime)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        (brand, line, vitola, length_mm, ring_gauge, filler, binder, wrapper, origin, strength, flavor_profile, photo_url, notes, photo_data, photo_mime, pairing_whiskey, pairing_brandy, pairing_coffee, pairing_drink)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         brand,
@@ -133,6 +137,10 @@ router.post(
         notes ?? null,
         downloaded?.data ?? null,
         downloaded?.mime ?? null,
+        pairing_whiskey ?? null,
+        pairing_brandy ?? null,
+        pairing_coffee ?? null,
+        pairing_drink ?? null,
       ]
     );
     res.status(201).json(stripPhotoData(result.rows[0]));
