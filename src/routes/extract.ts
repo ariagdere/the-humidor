@@ -4,9 +4,9 @@ import { asyncHandler } from "../asyncHandler";
 
 const router = Router();
 
-const ANTHROPIC_VERSION = "2023-06-01";
+export const ANTHROPIC_VERSION = "2023-06-01";
 const WEB_FETCH_BETA = "web-fetch-2025-09-10";
-const MODEL = "claude-sonnet-5";
+export const MODEL = "claude-sonnet-5";
 
 // Claude bazen "medium to full" gibi birleşik değerler döndürüyor; bizim
 // strength sütunumuz artık 5 kademeli: mild, mild-medium, medium, medium-full, full.
@@ -24,7 +24,7 @@ function normalizeStrength(raw: unknown): string | null {
   return null;
 }
 
-function extractJson(text: string): Record<string, unknown> | null {
+export function extractJson(text: string): Record<string, unknown> | null {
   // Claude çoğu zaman ```json çitleri içinde döndürüyor, bazen düz metin
   // arasında — { ile başlayıp } ile biten en son bloğu yakalıyoruz.
   const cleaned = text.replace(/```json/g, "").replace(/```/g, "");
@@ -36,6 +36,18 @@ function extractJson(text: string): Record<string, unknown> | null {
     return null;
   }
 }
+
+// Hem YENİ puro ekstraksiyonunda hem de mevcut purolar için geriye dönük
+// pairing üretiminde aynı talimatı kullanıyoruz -- tutarlılık için tek yerden.
+export const PAIRING_INSTRUCTIONS = `Suggest exactly 4 drink pairings for this cigar, one from each fixed category:
+1. pairing_whiskey — a whiskey-type spirit (Scotch, Bourbon, Rye, Irish, etc.) — name ONE specific type
+2. pairing_brandy — a brandy/rum-type spirit (Cognac, Armagnac, aged rum, etc.) — name ONE specific type
+3. pairing_coffee — a coffee drink (espresso, latte, americano, cortado, etc.) — name ONE specific type
+4. pairing_drink — EITHER a non-alcoholic soft drink OR a cocktail (cola, ginger ale, mojito, old fashioned, etc.) — pick whichever fits better, either kind is fine
+
+Base each choice on this cigar's actual profile (wrapper, strength, flavor_profile) rather than generic defaults. For each, write a short, specific recommendation with a brief reason it complements THIS cigar, in the style "<Specific drink> — <brief reason>", each under about 12 words total. Write in English.`;
+
+export const PAIRING_JSON_FIELDS = `"pairing_whiskey": "...", "pairing_brandy": "...", "pairing_coffee": "...", "pairing_drink": "..."`;
 
 // POST /api/extract — { url } al, Claude'un web_fetch + web_search araçlarıyla
 // künye alanlarını çıkarmasını sağla. Sonucu KAYDETMİYORUZ, sadece döndürüyoruz —
@@ -80,10 +92,12 @@ For anything not on the page (especially strength, flavor_profile, and photo_url
 
 Write all content in English regardless of the source page's language — this includes flavor_profile and confidence_notes.
 
+${PAIRING_INSTRUCTIONS}
+
 Keep your reasoning brief: summarize what you found on the page and what you searched for in 2-3 sentences, then go straight to the JSON.
 
 At the END of your reply, with nothing else, give only a JSON object with these fields (use null for anything you couldn't find):
-{"brand": "...", "line": "...", "vitola": "...", "length_mm": null, "ring_gauge": null, "wrapper": "...", "origin": "...", "strength": "...", "flavor_profile": "...", "photo_url": "...", "confidence_notes": "a short note on what came from the page vs. what you filled in via search"}`;
+{"brand": "...", "line": "...", "vitola": "...", "length_mm": null, "ring_gauge": null, "wrapper": "...", "origin": "...", "strength": "...", "flavor_profile": "...", "photo_url": "...", ${PAIRING_JSON_FIELDS}, "confidence_notes": "a short note on what came from the page vs. what you filled in via search"}`;
 
     const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
