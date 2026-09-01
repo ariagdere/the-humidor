@@ -2,6 +2,7 @@ import express, { Router } from "express";
 import pool from "../db";
 import { asyncHandler } from "../asyncHandler";
 import { downloadPhoto } from "../photoStorage";
+import { ANTHROPIC_VERSION, MODEL, PAIRING_INSTRUCTIONS, PAIRING_JSON_FIELDS, extractJson } from "./extract";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get(
              c.wrapper, c.origin, c.strength, c.flavor_profile, c.photo_url, c.notes,
              c.created_at, c.updated_at, c.draw_score, c.burn_score, c.construction_score,
              c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes, c.duration_minutes,
+             c.pairing_whiskey, c.pairing_brandy, c.pairing_coffee, c.pairing_drink,
              c.is_favorite,
              (c.photo_data IS NOT NULL) AS has_photo,
              s.total_bought, s.total_smoked, s.quantity_remaining
@@ -47,6 +49,7 @@ router.get(
               c.wrapper, c.origin, c.strength, c.flavor_profile, c.photo_url, c.notes,
               c.created_at, c.updated_at, c.draw_score, c.burn_score, c.construction_score,
               c.finish_score, c.overall_score, c.strength_experienced, c.scoring_notes, c.duration_minutes,
+              c.pairing_whiskey, c.pairing_brandy, c.pairing_coffee, c.pairing_drink,
               c.is_favorite,
               (c.photo_data IS NOT NULL) AS has_photo,
               s.total_bought, s.total_smoked, s.quantity_remaining,
@@ -159,6 +162,10 @@ const EDITABLE_CIGAR_FIELDS = [
   "strength_experienced",
   "scoring_notes",
   "duration_minutes",
+  "pairing_whiskey",
+  "pairing_brandy",
+  "pairing_coffee",
+  "pairing_drink",
   "is_favorite",
 ];
 
@@ -403,6 +410,91 @@ router.delete(
     const { id, humidorId } = req.params;
     await pool.query(`DELETE FROM cigar_humidor_allocations WHERE cigar_id = $1 AND humidor_id = $2`, [id, humidorId]);
     res.status(204).send();
+  })
+);
+
+// POST /api/cigars/:id/pairings/generate — mevcut (zaten kayıtlı) bir puronun
+// profiline göre 4 pairing önerisini üretip kaydeder. Web ekstraksiyonundan
+// FARKLI OLARAK burada URL/web_fetch yok -- sadece elimizdeki profil bilgisiyle
+// (brand/line/wrapper/strength/flavor_profile) Claude'a soruyoruz. Hem yeni
+// eklenip pairing'i olmayan purolar hem de geriye dönük backfill için kullanılır.
+router.post(
+  "/:id/pairings/generate",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({ error: "ANTHROPIC_API_KEY tanımlı değil — Railway Variables'a ekle" });
+    }
+
+    const cigarResult = await pool.query(
+      `SELECT brand, line, vitola, wrapper, origin, strength, flavor_profile FROM cigars WHERE id = $1`,
+      [id]
+    );
+    if (cigarResult.rows.length === 0) {
+      return res.status(404).json({ error: "Puro bulunamadı" });
+    }
+    const c = cigarResult.rows[0];
+    const title = [c.brand, c.line].filter(Boolean).join(" ");
+
+    const prompt = `Cigar profile:
+- Name: ${title || "(unknown)"}
+- Vitola: ${c.vitola || "(unknown)"}
+- Wrapper: ${c.wrapper || "(unknown)"}
+- Origin: ${c.origin || "(unknown)"}
+- Strength: ${c.strength || "(unknown)"}
+- Flavor profile: ${c.flavor_profile || "(unknown)"}
+
+${PAIRING_INSTRUCTIONS}
+
+Reply with ONLY a JSON object, nothing else:
+{${PAIRING_JSON_FIELDS}}`;
+
+    const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 512,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!apiRes.ok) {
+      const errText = await apiRes.text();
+      console.error("Anthropic API hatası:", apiRes.status, errText);
+      return res.status(502).json({ error: `Claude API isteği başarısız oldu (${apiRes.status})` });
+    }
+
+    const data = (await apiRes.json()) as { content?: Array<{ type: string; text?: string }> };
+    const fullText = (data.content || [])
+      .filter((b) => b.type === "text")
+      .map((b) => b.text || "")
+      .join("\n");
+
+    const pairings = extractJson(fullText);
+    if (!pairings) {
+      return res.status(502).json({ error: "Claude'un yanıtından JSON çıkarılamadı", raw: fullText.slice(0, 400) });
+    }
+
+    const result = await pool.query(
+      `UPDATE cigars
+       SET pairing_whiskey = $2, pairing_brandy = $3, pairing_coffee = $4, pairing_drink = $5, updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        id,
+        pairings.pairing_whiskey ?? null,
+        pairings.pairing_brandy ?? null,
+        pairings.pairing_coffee ?? null,
+        pairings.pairing_drink ?? null,
+      ]
+    );
+
+    res.json(stripPhotoData(result.rows[0]));
   })
 );
 
