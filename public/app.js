@@ -611,6 +611,17 @@ function renderCigarModal(c) {
     </details>
 
     <div class="md-section">
+      <div class="tasting-summary-row">
+        <h4>Recommended Pairings</h4>
+        <button type="button" class="link-btn" id="generate-pairings-btn">${hasPairings ? "Regenerate with AI" : "Generate with AI"}</button>
+      </div>
+      ${hasPairings
+        ? `<div class="md-facts">${pairingFactsHtml(c)}</div>`
+        : `<p class="pr-meta">No pairing suggestions yet — add them above or generate with AI.</p>`}
+      <span class="form-status" data-status-for="pairings"></span>
+    </div>
+
+    <div class="md-section">
       <h4>Rating</h4>
       ${hasRating
         ? `<div class="md-facts">${ratingFactsHtml(c)}</div>${c.scoring_notes ? `<p class="pr-meta" style="margin-top:6px"><span class="md-fact-label">Notes:</span> ${esc(c.scoring_notes)}</p>` : ""}`
@@ -655,17 +666,6 @@ function renderCigarModal(c) {
           <span class="form-status" data-status-for="allocation"></span>
         </div>
       </form>
-    </div>
-
-    <div class="md-section">
-      <div class="tasting-summary-row">
-        <h4>Pairing</h4>
-        <button type="button" class="link-btn" id="generate-pairings-btn">${hasPairings ? "Regenerate with AI" : "Generate with AI"}</button>
-      </div>
-      ${hasPairings
-        ? `<div class="md-facts">${pairingFactsHtml(c)}</div>`
-        : `<p class="pr-meta">No pairing suggestions yet — add them above or generate with AI.</p>`}
-      <span class="form-status" data-status-for="pairings"></span>
     </div>
 
     <div class="md-section">
@@ -1586,38 +1586,6 @@ function updateBackToTopVisibility() {
 window.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
 backToTopBtn.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
-});
-
-// --- Pairing backfill (mevcut purolar için toplu AI üretimi) -----------
-document.getElementById("backfill-pairings-btn").addEventListener("click", async () => {
-  const btn = document.getElementById("backfill-pairings-btn");
-  const status = document.getElementById("backfill-pairings-status");
-  const missing = cigarsCache.filter(
-    (c) => !c.pairing_whiskey && !c.pairing_brandy && !c.pairing_coffee && !c.pairing_drink
-  );
-  if (missing.length === 0) {
-    status.textContent = "All cigars already have pairing suggestions.";
-    status.className = "form-status ok";
-    return;
-  }
-  btn.disabled = true;
-  let done = 0, failed = 0;
-  for (const cigar of missing) {
-    status.textContent = `Generating ${done + failed + 1}/${missing.length}…`;
-    status.className = "form-status";
-    try {
-      await apiFetch(`/api/cigars/${cigar.id}/pairings/generate`, { method: "POST" });
-      done++;
-    } catch (err) {
-      failed++;
-    }
-  }
-  status.textContent = failed > 0
-    ? `Done: ${done} generated, ${failed} failed (try again for those).`
-    : `Done: ${done} cigar${done === 1 ? "" : "s"} updated.`;
-  status.className = failed > 0 ? "form-status err" : "form-status ok";
-  btn.disabled = false;
-  loadInventory();
 });
 
 // --- Startup -----------------------------------------------------------
