@@ -91,6 +91,11 @@
         <label class="inv-toggle"><input type="checkbox" id="inv-in-stock-only" /> In stock only</label>
       </div>
 
+      <p class="pairing-backfill-row">
+        <button type="button" class="link-btn" id="backfill-pairings-btn">Fill in missing pairing suggestions with AI</button>
+        <span id="backfill-pairings-status" class="form-status"></span>
+      </p>
+
       <div id="inventory-list" class="cigar-list"></div>
       <button type="button" id="inv-load-more" class="btn-secondary inv-load-more" hidden>Load 20 more</button>
       <p id="inventory-empty" class="empty-state" hidden>
@@ -185,6 +190,16 @@
           <span>Expected flavor profile</span>
           <textarea name="flavor_profile" rows="2" placeholder="Cocoa, coffee, spice…"></textarea>
         </label>
+
+        <p class="mini-label">Pairing suggestions (optional — AI can fill these in)</p>
+        <div class="field-row">
+          <label class="field field-sm"><span>Whiskey</span><input name="pairing_whiskey" type="text" placeholder="e.g. Islay Scotch" /></label>
+          <label class="field field-sm"><span>Brandy / rum</span><input name="pairing_brandy" type="text" placeholder="e.g. VSOP Cognac" /></label>
+        </div>
+        <div class="field-row">
+          <label class="field field-sm"><span>Coffee</span><input name="pairing_coffee" type="text" placeholder="e.g. Espresso" /></label>
+          <label class="field field-sm"><span>Soft drink / cocktail</span><input name="pairing_drink" type="text" placeholder="e.g. Mojito" /></label>
+        </div>
 
         <label class="field">
           <span>Notes</span>
