@@ -148,8 +148,6 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .inv-toggle input { margin: 0; }
 
-.pairing-backfill-row { display: flex; align-items: center; gap: 12px; margin: -8px 0 16px; }
-
 .cigar-list { display: flex; flex-direction: column; }
 .cigar-row {
   display: flex; align-items: center; gap: 16px;
