@@ -13,7 +13,8 @@ function normalizeMac(mac: unknown): string | null {
   return mac.trim().toLowerCase();
 }
 
-// GET /api/humidors — her humidor için son okumayı da ekleyerek listele
+// GET /api/humidors — her humidor için son okumayı da ekleyerek listele.
+// Aktif humidorlar önde, pasifler (is_active = false) listenin sonunda; kendi içlerinde isme göre.
 router.get(
   "/",
   asyncHandler(async (_req, res) => {
@@ -34,7 +35,7 @@ router.get(
       LEFT JOIN (
         SELECT humidor_id, SUM(quantity) AS total FROM cigar_humidor_allocations GROUP BY humidor_id
       ) stored ON stored.humidor_id = h.id
-      ORDER BY h.name
+      ORDER BY h.is_active DESC, h.name
     `);
     res.json(result.rows);
   })
@@ -57,18 +58,25 @@ router.post(
   })
 );
 
-// PUT /api/humidors/:id — örn. cihaz kurulunca mac_address eklemek için
+// PUT /api/humidors/:id — örn. cihaz kurulunca mac_address eklemek için;
+// is_active ile de humidor silinmeden pasife alınır / tekrar aktif edilir.
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
-    const { name, mac_address, location_note, temp_offset_c, humidity_offset_pct } = req.body;
+    const { name, mac_address, location_note, temp_offset_c, humidity_offset_pct, is_active } = req.body;
+    // is_active sadece gerçek bir boolean olabilir -- "false" gibi bir string ya da
+    // null sessizce yanlış yorumlanmasın (ör. COALESCE null'ı "değiştirme" sayar) diye açıkça reddediyoruz.
+    if (is_active !== undefined && typeof is_active !== "boolean") {
+      return res.status(400).json({ error: "is_active true veya false olmalı" });
+    }
     const result = await pool.query(
       `UPDATE humidors
        SET name = COALESCE($2, name),
            mac_address = COALESCE($3, mac_address),
            location_note = COALESCE($4, location_note),
            temp_offset_c = COALESCE($5, temp_offset_c),
-           humidity_offset_pct = COALESCE($6, humidity_offset_pct)
+           humidity_offset_pct = COALESCE($6, humidity_offset_pct),
+           is_active = COALESCE($7, is_active)
        WHERE id = $1
        RETURNING *`,
       [
@@ -78,6 +86,7 @@ router.put(
         location_note ?? null,
         temp_offset_c ?? null,
         humidity_offset_pct ?? null,
+        is_active ?? null,
       ]
     );
     if (result.rows.length === 0) {

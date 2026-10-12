@@ -213,6 +213,48 @@ button { font-family: var(--font-body); cursor: pointer; }
 .humidor-card-actions { display: flex; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .humidor-card-actions .danger { color: var(--error); }
 
+/* --- Humidor aktif/pasif switch'i ---------------------------------------- */
+.humidor-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.humidor-card-head .humidor-name { min-width: 0; overflow-wrap: anywhere; }
+.humidor-switch {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  flex-shrink: 0; min-width: 44px; padding: 2px 0; cursor: pointer; user-select: none;
+}
+/* Gerçek checkbox görünmez ama tüm switch alanını kaplıyor: tıklama/dokunma/klavye
+   (Tab + Space) hepsi native olarak çalışıyor, parmakla basması da kolay. */
+.humidor-switch input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer;
+}
+.humidor-switch input:disabled { cursor: wait; }
+.humidor-switch-track {
+  position: relative; width: 34px; height: 20px; border-radius: 20px;
+  background: #D5C8AE; transition: background 0.15s;
+}
+.humidor-switch-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(43, 33, 26, 0.3);
+  transition: transform 0.15s;
+}
+.humidor-switch input:checked + .humidor-switch-track { background: var(--leaf); }
+.humidor-switch input:checked + .humidor-switch-track::after { transform: translateX(14px); }
+.humidor-switch input:focus-visible + .humidor-switch-track { outline: 2px solid var(--brass); outline-offset: 2px; }
+.humidor-switch input:disabled + .humidor-switch-track { opacity: 0.5; }
+.humidor-switch-label {
+  font-size: 10px; line-height: 1; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--ink-soft);
+}
+.humidor-switch input:checked ~ .humidor-switch-label { color: var(--leaf); }
+
+/* Pasif humidor: kesikli çerçeve + soluk içerik. Aksiyon satırı (Details/Edit/Delete)
+   ve switch tam okunur kalıyor ki tekrar aktif etmek / yönetmek kolay olsun. */
+.humidor-card-inactive { border-style: dashed; box-shadow: none; background: transparent; }
+.humidor-card-inactive .humidor-name,
+.humidor-card-inactive .humidor-note,
+.humidor-card-inactive .humidor-cigar-count,
+.humidor-card-inactive .humidor-readings,
+.humidor-card-inactive .humidor-waiting,
+.humidor-card-inactive .humidor-mac { opacity: 0.55; }
+
 /* ==========================================================================
    Formlar (ledger-form)
    ========================================================================== */

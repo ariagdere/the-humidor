@@ -346,11 +346,17 @@ const STRENGTH_OPTIONS = ["mild", "mild-medium", "medium", "medium-full", "full"
 
 // Purchase/tasting formlarındaki "hangi humidor" seçicisi için ortak seçenek listesi.
 // humidorsCache app başlarken loadHumidors() ile zaten dolduruluyor (bkz. initApp).
-function humidorOptionsHtml(selectedId) {
+// Pasif (switch'i kapalı) humidorlar yeni atama için listelenmez. İstisna: zaten seçili
+// olan ya da keepIds'te verilen (ör. bu puronun hâlihazırda içinde durduğu) pasif humidor
+// "(inactive)" etiketiyle listede kalır -- mevcut bir kayıt seçiciden kaybolmasın.
+function humidorOptionsHtml(selectedId, keepIds = []) {
   const sel = selectedId != null ? String(selectedId) : "";
-  const opts = humidorsCache.map(
-    (h) => `<option value="${h.id}"${String(h.id) === sel ? " selected" : ""}>${esc(h.name)}</option>`
-  );
+  const keep = new Set(keepIds.map(String));
+  const opts = humidorsCache
+    .filter((h) => h.is_active !== false || String(h.id) === sel || keep.has(String(h.id)))
+    .map(
+      (h) => `<option value="${h.id}"${String(h.id) === sel ? " selected" : ""}>${esc(h.name)}${h.is_active === false ? " (inactive)" : ""}</option>`
+    );
   return `<option value=""${sel === "" ? " selected" : ""}>—</option>${opts.join("")}`;
 }
 
@@ -657,7 +663,7 @@ function renderCigarModal(c) {
         : `<p class="pr-meta">Not assigned to a humidor yet.</p>`}
       <form id="allocation-form" class="ledger-form" style="margin-top:10px">
         <div class="field-row purchase-row-compact">
-          <label class="field"><span>Humidor</span><select name="humidor_id" id="allocation-humidor-select" required>${humidorOptionsHtml()}</select></label>
+          <label class="field"><span>Humidor</span><select name="humidor_id" id="allocation-humidor-select" required>${humidorOptionsHtml(null, allocations.map((a) => a.humidor_id))}</select></label>
           <label class="field field-sm"><span>Qty *</span><input name="quantity" id="allocation-qty-input" type="number" min="1" required /></label>
         </div>
         <p class="field-hint" id="allocation-max-hint"></p>
@@ -1269,7 +1275,9 @@ let humidorsCache = [];
 async function loadHumidors() {
   const grid = document.getElementById("humidor-grid");
   const empty = document.getElementById("humidor-empty");
-  grid.innerHTML = `<p class="loading">Loading…</p>`;
+  // Kartlar zaten ekrandayken (ör. bir switch'i çevirince) grid'i "Loading…" ile
+  // boşaltıp sayfayı zıplatmıyoruz -- sadece ilk yüklemede göster.
+  if (!grid.querySelector(".humidor-card")) grid.innerHTML = `<p class="loading">Loading…</p>`;
 
   humidorsCache = await apiFetch("/api/humidors");
   renderDashboardSensors(humidorsCache);
@@ -1282,11 +1290,19 @@ async function loadHumidors() {
   empty.hidden = true;
 
   for (const h of humidorsCache) {
+    const isActive = h.is_active !== false;
     const card = document.createElement("div");
-    card.className = "humidor-card";
+    card.className = "humidor-card" + (isActive ? "" : " humidor-card-inactive");
     const hasReading = h.latest_reading_time != null;
     card.innerHTML = `
-      <div class="humidor-name">${esc(h.name)}</div>
+      <div class="humidor-card-head">
+        <div class="humidor-name">${esc(h.name)}</div>
+        <label class="humidor-switch" title="${isActive ? "Active — shown on the dashboard" : "Inactive — hidden from the dashboard"}">
+          <input type="checkbox" role="switch" class="humidor-active-toggle" data-id="${h.id}"${isActive ? " checked" : ""} aria-label="Show ${esc(h.name)} on the dashboard" />
+          <span class="humidor-switch-track" aria-hidden="true"></span>
+          <span class="humidor-switch-label">${isActive ? "Active" : "Inactive"}</span>
+        </label>
+      </div>
       ${h.location_note ? `<div class="humidor-note">${esc(h.location_note)}</div>` : ""}
       <div class="humidor-cigar-count">${h.cigar_count} cigar${Number(h.cigar_count) === 1 ? "" : "s"} stored</div>
       ${hasReading
@@ -1304,6 +1320,38 @@ async function loadHumidors() {
     `;
     grid.appendChild(card);
   }
+
+  // Aktif/pasif switch'i: humidor silinmeden pasife alınır, geri açılabilir.
+  // Pasifler dashboard'dan ve yeni atama seçicilerinden çıkar; içindeki puro
+  // dağıtımları ve sensör geçmişi olduğu gibi kalır.
+  grid.querySelectorAll(".humidor-active-toggle").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const h = humidorsCache.find((x) => x.id === Number(input.dataset.id));
+      if (!h) return;
+      const makeActive = input.checked;
+
+      // İçinde puro olan bir humidor'u kapatmadan önce sor -- yanlışlıkla dokunulmuş olabilir.
+      const n = Number(h.cigar_count) || 0;
+      if (!makeActive && n > 0) {
+        const ok = confirm(
+          `Deactivate "${h.name}"?\n\nIt still holds ${n} cigar${n === 1 ? "" : "s"}. They stay assigned to it, but the humidor will be hidden from the dashboard and from new assignments.`
+        );
+        if (!ok) { input.checked = true; return; }
+      }
+
+      input.disabled = true;
+      let saved = false;
+      try {
+        await apiFetch(`/api/humidors/${h.id}`, { method: "PUT", body: JSON.stringify({ is_active: makeActive }) });
+        saved = true;
+        await loadHumidors(); // kartlar + dashboard satırı + seçici cache'i yenilenir
+      } catch (err) {
+        if (!saved) input.checked = !makeActive; // sadece kayıt başarısızsa switch'i eski haline döndür
+        input.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
 
   grid.querySelectorAll(".humidor-history-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1535,14 +1583,15 @@ async function openHumidorDetail(h) {
 }
 
 // Renders the compact, right-aligned sensor summary in the dashboard's stat row.
-// With zero humidors nothing renders — the row just keeps its 3 numbers.
+// Only ACTIVE humidors (switch on) are shown; with none, nothing renders — the row just keeps its 3 numbers.
 function renderDashboardSensors(humidors) {
   const container = document.getElementById("dash-sensors");
-  if (!humidors || humidors.length === 0) {
+  const active = (humidors || []).filter((h) => h.is_active !== false);
+  if (active.length === 0) {
     container.innerHTML = "";
     return;
   }
-  container.innerHTML = humidors.map((h) => {
+  container.innerHTML = active.map((h) => {
     const hasReading = h.latest_reading_time != null;
     return `
       <div class="dash-sensor">
